@@ -15,8 +15,8 @@ var debugLogger = slog.New(slog.DiscardHandler)
 // Parse parses the output of `git status --porcelain=v2`.
 //
 // Additional status headers such as `# branch.*` and `# stash <N>` are parsed if present.
-func Parse(r io.Reader) (*GitStatusV2, error) {
-	s := GitStatusV2{}
+func Parse(r io.Reader) (*Status, error) {
+	s := Status{}
 	scan := bufio.NewScanner(r)
 	for scan.Scan() {
 		line := scan.Bytes()
@@ -63,7 +63,7 @@ func Parse(r io.Reader) (*GitStatusV2, error) {
 	return &s, scan.Err()
 }
 
-func parseHeader(line []byte, s *GitStatusV2) {
+func parseHeader(line []byte, s *Status) {
 	fields := bytes.Fields(line)
 	if len(fields) < 3 || fields[0][0] != '#' {
 		return
@@ -97,7 +97,7 @@ func parseHeader(line []byte, s *GitStatusV2) {
 	}
 }
 
-func ensureBranch(s *GitStatusV2) *BranchInfo {
+func ensureBranch(s *Status) *BranchInfo {
 	if s.Branch == nil {
 		s.Branch = &BranchInfo{}
 	}

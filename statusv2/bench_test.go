@@ -17,7 +17,7 @@ func BenchmarkParse_Sample(b *testing.B) {
 }
 
 func Benchmark_parseHeaders(b *testing.B) {
-	var s GitStatusV2
+	var s Status
 
 	b.ReportAllocs()
 	for b.Loop() {

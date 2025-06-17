@@ -31,7 +31,7 @@ func TestParse_Sample(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	want := &GitStatusV2{
+	want := &Status{
 		Branch: &BranchInfo{
 			OID:      "34064be349d4a03ed158aba170d8d2db6ff9e3e0",
 			Head:     "main",
@@ -93,7 +93,7 @@ func TestParseGolden(t *testing.T) {
 	testcases := []struct {
 		file    string
 		desc    string // optional human readable description
-		want    *GitStatusV2
+		want    *Status
 		wantErr bool
 	}{}
 

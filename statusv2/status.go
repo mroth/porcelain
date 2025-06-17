@@ -3,9 +3,9 @@ package statusv2
 
 import "strconv"
 
-// GitStatusV2 represents a full --porcelain=v2 snapshot.
+// Status represents a full --porcelain=v2 snapshot.
 // If you invoked `--branch`, Branch will be non-nil. If `--show-stash` was passed and N>0, Stash.Count == N.
-type GitStatusV2 struct {
+type Status struct {
 	Branch  *BranchInfo // nil if `--branch` not passed
 	Stash   *StashInfo  // nil if `--show-stash` not passed or count == 0
 	Entries []Entry     // in the order lines appeared; can be ChangedEntry, RenameOrCopyEntry, UnmergedEntry, UntrackedEntry, or IgnoredEntry
