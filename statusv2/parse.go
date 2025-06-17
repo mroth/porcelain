@@ -14,12 +14,33 @@ var debugLogger = slog.New(slog.DiscardHandler)
 
 // Parse parses the output of `git status --porcelain=v2`.
 //
-// Additional status headers such as `# branch.*` and `# stash <N>` are parsed if present.
+// Additional status headers such as `--branch` and `--show-status` are parsed if present.
 func Parse(r io.Reader) (*Status, error) {
+	return parseWithScanner(bufio.NewScanner(r), tabSeparator)
+}
+
+// ParseZ parses the output of `git status --porcelain=v2 -z`.
+//
+// The -z flag changes line termination from LF to NUL and path separation in rename/copy
+// entries from tab to NUL.
+//
+// For additional details, see the documentation of [Parse].
+func ParseZ(r io.Reader) (*Status, error) {
+	return parseWithScanner(newZScanner(r), nulSeparator)
+}
+
+// renamePathSep represents the byte used to separate paths in rename/copy entries
+type renamePathSep byte
+
+const (
+	tabSeparator renamePathSep = '\t'   // Normal mode: paths separated by tab
+	nulSeparator renamePathSep = '\x00' // -z mode: paths separated by NUL
+)
+
+func parseWithScanner(scanner *bufio.Scanner, pathSep renamePathSep) (*Status, error) {
 	s := Status{}
-	scan := bufio.NewScanner(r)
-	for scan.Scan() {
-		line := scan.Bytes()
+	for scanner.Scan() {
+		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
 		}
@@ -35,7 +56,7 @@ func Parse(r io.Reader) (*Status, error) {
 			}
 			s.Entries = append(s.Entries, entry)
 		case '2':
-			entry, err := parseRenameOrCopy(line)
+			entry, err := parseRenameOrCopy(line, pathSep)
 			if err != nil {
 				return nil, err
 			}
@@ -60,7 +81,7 @@ func Parse(r io.Reader) (*Status, error) {
 			s.Entries = append(s.Entries, entry)
 		}
 	}
-	return &s, scan.Err()
+	return &s, scanner.Err()
 }
 
 func parseHeader(line []byte, s *Status) {
@@ -162,7 +183,7 @@ func parseChanged(line []byte) (ChangedEntry, error) {
 
 // Renamed or copied entries have the following format:
 // 2 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path><sep><origPath>
-func parseRenameOrCopy(line []byte) (RenameOrCopyEntry, error) {
+func parseRenameOrCopy(line []byte, pathSep renamePathSep) (RenameOrCopyEntry, error) {
 	var zero RenameOrCopyEntry
 	fields := bytes.SplitN(line, []byte{' '}, 10)
 	if len(fields) < 10 || fields[0][0] != '2' {
@@ -210,7 +231,7 @@ func parseRenameOrCopy(line []byte) (RenameOrCopyEntry, error) {
 	// The target path (new path) and the origin path (old path) are separated
 	// by tab (ASCII 0x09), except in -z mode, where they are separated by NUL
 	// (ASCII 0x00).
-	var sep = []byte{'\t'}
+	sep := []byte{byte(pathSep)}
 	pathBytes, origBytes, found := bytes.Cut(fields[9], sep)
 	if !found {
 		return zero, fmt.Errorf("invalid rename/copy path entry format: %q", fields[9])
@@ -342,11 +363,3 @@ func parseXYFlag(field []byte) (XYFlag, error) {
 	}
 	return XYFlag{State(field[0]), State(field[1])}, nil
 }
-
-// ParseZ parses the output of `git status --porcelain=v2 -z`.
-//
-// -z output is a special mode that uses a NUL (ASCII 0x00) byte as line terminator instead of newline,
-// as well as disabling any quoting of special characters in pathnames.
-// func ParseZ(input io.Reader) (*GitStatusV2, error) {
-// 	panic("not implemented")
-// }

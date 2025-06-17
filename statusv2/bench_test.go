@@ -43,7 +43,7 @@ func Benchmark_parseRenameOrCopy(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		parseRenameOrCopy(simple)
+		parseRenameOrCopy(simple, tabSeparator)
 	}
 }
 

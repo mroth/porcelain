@@ -25,7 +25,7 @@ const samplePorcelainV2Output = `# comment skipped non-standard header
 ! file_ignored.txt
 `
 
-func TestParse_Sample(t *testing.T) {
+func TestParse(t *testing.T) {
 	r := strings.NewReader(samplePorcelainV2Output)
 	got, err := Parse(r)
 	if err != nil {
@@ -83,6 +83,50 @@ func TestParse_Sample(t *testing.T) {
 	}
 	if cmp.Diff(want, got) != "" {
 		t.Errorf("Parse() mismatch (-want +got):\n%s", cmp.Diff(want, got))
+	}
+}
+
+func TestParseZ(t *testing.T) {
+	// Test ParseZ with basic functionality
+	input := "1 M. N... 100644 100644 100644 hash1 hash2 modified.txt\x00" +
+		"2 R. N... 100644 100644 100644 hash1 hash2 R100 newpath.txt\x00oldpath.txt\x00" +
+		"? untracked.txt\x00"
+
+	got, err := ParseZ(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("ParseZ() error = %v", err)
+	}
+	want := &Status{
+		Entries: []Entry{
+			ChangedEntry{
+				XY:    XYFlag{Modified, Unmodified},
+				Sub:   SubmoduleStatus{IsSubmodule: false},
+				ModeH: 0100644,
+				ModeI: 0100644,
+				ModeW: 0100644,
+				HashH: "hash1",
+				HashI: "hash2",
+				Path:  "modified.txt",
+			},
+			RenameOrCopyEntry{
+				XY:    XYFlag{Renamed, Unmodified},
+				Sub:   SubmoduleStatus{IsSubmodule: false},
+				ModeH: 0100644,
+				ModeI: 0100644,
+				ModeW: 0100644,
+				HashH: "hash1",
+				HashI: "hash2",
+				Score: "R100",
+				Path:  "newpath.txt",
+				Orig:  "oldpath.txt",
+			},
+			UntrackedEntry{
+				Path: "untracked.txt",
+			},
+		},
+	}
+	if cmp.Diff(want, got) != "" {
+		t.Errorf("ParseZ() mismatch (-want +got):\n%s", cmp.Diff(want, got))
 	}
 }
 
@@ -410,7 +454,7 @@ func TestParseRenameOrCopied(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseRenameOrCopy([]byte(tc.input))
+			got, err := parseRenameOrCopy([]byte(tc.input), tabSeparator)
 			if (err != nil) != tc.wantErr {
 				t.Errorf("parseRenameOrCopy() error = %v, wantErr %v", err, tc.wantErr)
 			}
