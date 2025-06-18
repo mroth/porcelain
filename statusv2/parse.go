@@ -85,27 +85,27 @@ func parseWithScanner(scanner *bufio.Scanner, pathSep renamePathSep) (*Status, e
 }
 
 func parseHeader(line []byte, s *Status) {
-	fields := bytes.Fields(line)
-	if len(fields) < 3 || fields[0][0] != '#' {
+	line, ok := bytes.CutPrefix(line, []byte("# "))
+	if !ok {
 		return
 	}
 
-	switch string(fields[1]) {
+	headerKey, value, found := bytes.Cut(line, []byte{' '})
+	if !found {
+		return
+	}
+
+	switch string(headerKey) {
 	case "branch.oid":
-		ensureBranch(s).OID = string(fields[2])
+		ensureBranch(s).OID = string(value)
 	case "branch.head":
-		ensureBranch(s).Head = string(fields[2])
+		ensureBranch(s).Head = string(value)
 	case "branch.upstream":
-		ensureBranch(s).Upstream = string(fields[2])
+		ensureBranch(s).Upstream = string(value)
 	case "branch.ab":
-		if len(fields) < 4 {
-			debugLogger.Warn("invalid branch.ab header", "line", string(line))
-			return
-		}
-		fmt.Sscanf(string(fields[2]), "+%d", &ensureBranch(s).Ahead)
-		fmt.Sscanf(string(fields[3]), "-%d", &ensureBranch(s).Behind)
+		fmt.Sscanf(string(value), "+%d -%d", &ensureBranch(s).Ahead, &ensureBranch(s).Behind)
 	case "stash":
-		n, err := strconv.ParseInt(string(fields[2]), 10, 0)
+		n, err := strconv.ParseInt(string(value), 10, 0)
 		if err != nil {
 			// If we can't parse the stash count, just ignore it as invalid
 			debugLogger.Warn("invalid stash count", "line", string(line), "error", err)
