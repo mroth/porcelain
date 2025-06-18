@@ -130,7 +130,7 @@ func ensureBranch(s *Status) *BranchInfo {
 func parseChanged(line []byte) (ChangedEntry, error) {
 	var zero ChangedEntry
 	fields := bytes.SplitN(line, []byte{' '}, 9)
-	if len(fields) < 9 || fields[0][0] != '1' {
+	if len(fields) < 9 || !bytes.HasPrefix(fields[0], []byte{'1'}) {
 		return zero, fmt.Errorf("invalid changed entry line: %q", line)
 	}
 
@@ -186,7 +186,7 @@ func parseChanged(line []byte) (ChangedEntry, error) {
 func parseRenameOrCopy(line []byte, pathSep renamePathSep) (RenameOrCopyEntry, error) {
 	var zero RenameOrCopyEntry
 	fields := bytes.SplitN(line, []byte{' '}, 10)
-	if len(fields) < 10 || fields[0][0] != '2' {
+	if len(fields) < 10 || !bytes.HasPrefix(fields[0], []byte{'2'}) {
 		return zero, fmt.Errorf("invalid rename or copy entry line: %q", line)
 	}
 
@@ -258,7 +258,7 @@ func parseRenameOrCopy(line []byte, pathSep renamePathSep) (RenameOrCopyEntry, e
 func parseUnmerged(line []byte) (UnmergedEntry, error) {
 	var zero UnmergedEntry
 	fields := bytes.SplitN(line, []byte{' '}, 11)
-	if len(fields) < 11 || fields[0][0] != 'u' {
+	if len(fields) < 11 || !bytes.HasPrefix(fields[0], []byte{'u'}) {
 		return zero, fmt.Errorf("invalid unmerged entry line: %q", line)
 	}
 
@@ -317,23 +317,23 @@ func parseUnmerged(line []byte) (UnmergedEntry, error) {
 // Untracked items have the following format:
 // ? <path>
 func parseUntracked(line []byte) (UntrackedEntry, error) {
-	if !bytes.HasPrefix(line, []byte{'?', ' '}) {
+	pathBytes, ok := bytes.CutPrefix(line, []byte{'?', ' '})
+	if !ok {
 		return UntrackedEntry{}, fmt.Errorf("invalid untracked entry line: %q", line)
 	}
 
-	path := string(line[2:]) // Skip the "? " prefix
-	return UntrackedEntry{Path: path}, nil
+	return UntrackedEntry{Path: string(pathBytes)}, nil
 }
 
 // Ignored items have the following format:
 // ! <path>
 func parseIgnored(line []byte) (IgnoredEntry, error) {
-	if !bytes.HasPrefix(line, []byte{'!', ' '}) {
+	pathBytes, ok := bytes.CutPrefix(line, []byte{'!', ' '})
+	if !ok {
 		return IgnoredEntry{}, fmt.Errorf("invalid ignored entry line: %q", line)
 	}
 
-	path := string(line[2:]) // Skip the "! " prefix
-	return IgnoredEntry{Path: path}, nil
+	return IgnoredEntry{Path: string(pathBytes)}, nil
 }
 
 func parseSubmoduleStatus(field []byte) (SubmoduleStatus, error) {
