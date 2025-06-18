@@ -18,14 +18,21 @@ func BenchmarkParse_Sample(b *testing.B) {
 
 func Benchmark_parseHeaders(b *testing.B) {
 	var s Status
+	var (
+		branchOID      = []byte("# branch.oid 34064be349d4a03ed158aba170d8d2db6ff9e3e0")
+		branchHead     = []byte("# branch.head main")
+		branchUpstream = []byte("# branch.upstream origin/main")
+		branchAB       = []byte("# branch.ab +6 -3")
+		stash          = []byte("# stash 3")
+	)
 
 	b.ReportAllocs()
 	for b.Loop() {
-		parseHeader([]byte("# branch.oid 34064be349d4a03ed158aba170d8d2db6ff9e3e0"), &s)
-		parseHeader([]byte("# branch.head main"), &s)
-		parseHeader([]byte("# branch.upstream origin/main"), &s)
-		parseHeader([]byte("# branch.ab +6 -3"), &s)
-		parseHeader([]byte("# stash 3"), &s)
+		parseHeader(branchOID, &s)
+		parseHeader(branchHead, &s)
+		parseHeader(branchUpstream, &s)
+		parseHeader(branchAB, &s)
+		parseHeader(stash, &s)
 	}
 }
 
