@@ -1,53 +1,69 @@
-// Package statusv2 implements parsing of `git status --porcelain=v2` output.
 package statusv2
 
 import "strconv"
 
-// Status represents a full --porcelain=v2 snapshot.
-// If you invoked `--branch`, Branch will be non-nil. If `--show-stash` was passed and N>0, Stash.Count == N.
+// Status represents parsed git status --porcelain=v2 output.
+//
+// Branch contains branch information if --branch was used.
+// Stash contains stash count if --show-stash was used and stashes exist.
+// Entries contains all file status entries in the order they appeared.
 type Status struct {
 	Branch  *BranchInfo // nil if `--branch` not passed
 	Stash   *StashInfo  // nil if `--show-stash` not passed or count == 0
 	Entries []Entry     // in the order lines appeared; can be ChangedEntry, RenameOrCopyEntry, UnmergedEntry, UntrackedEntry, or IgnoredEntry
 }
 
-// BranchInfo holds data from all “# branch.*” headers (requires --branch).
+// BranchInfo contains branch information from git status --branch output.
+//
+// Available when --branch flag is used. Contains current branch state,
+// upstream tracking information, and ahead/behind commit counts.
 type BranchInfo struct {
-	OID      string // commit hash or "(initial)"
-	Head     string // branch name or "(detached)"
-	Upstream string // upstream branch name (empty if unset)
-	Ahead    int    // how many commits ahead of upstream
-	Behind   int    // how many commits behind upstream
+	OID      string // current commit hash, or "(initial)" for new repos
+	Head     string // current branch name, or "(detached)" for detached HEAD
+	Upstream string // upstream branch name (empty if no upstream set)
+	Ahead    int    // commits ahead of upstream
+	Behind   int    // commits behind upstream
 }
 
-// StashInfo holds the stash header “# stash <N>” (requires --show-stash).
+// StashInfo contains stash information from git status --show-stash output.
+//
+// Available when --show-stash flag is used and stashes exist.
 type StashInfo struct {
 	Count int // number of stash entries
 }
 
-// EntryType enumerates the kinds of per-file lines in porcelain v2.
+// EntryType identifies the kind of file status entry.
 type EntryType int
 
+// Entry type constants corresponding to git status line prefixes.
 const (
-	EntryTypeChanged      EntryType = iota // “1” ordinary changed entry
-	EntryTypeRenameOrCopy                  // “2” rename or copy
-	EntryTypeUnmerged                      // “u” merge-conflict entry
-	EntryTypeUntracked                     // “?” untracked file
-	EntryTypeIgnored                       // “!” ignored file
+	EntryTypeChanged      EntryType = iota // "1" - modified files
+	EntryTypeRenameOrCopy                  // "2" - renamed or copied files
+	EntryTypeUnmerged                      // "u" - merge conflict files
+	EntryTypeUntracked                     // "?" - untracked files
+	EntryTypeIgnored                       // "!" - ignored files
 )
 
-// Entry is a union interface; each implementation corresponds to one line-type.
+// Entry represents a file status entry. Use type switching to access specific fields:
+//
+//	switch e := entry.(type) {
+//	case ChangedEntry:
+//		// Access e.Path, etc.
+//	case RenameOrCopyEntry:
+//		// Access e.Path, e.Orig, etc.
+//	}
 type Entry interface {
 	Type() EntryType
 }
 
-// State is one of the valid XY status bytes (as in “<XY>” field).
+// State represents a single character from Git's XY status codes.
 type State byte
 
+// Git status state codes for index (X) and worktree (Y) changes.
 const (
-	Unmodified      State = '.' // unmodified
+	Unmodified      State = '.' // no changes
 	Modified        State = 'M' // modified
-	TypeChanged     State = 'T' // file type changed (e.g. regular→symlink)
+	TypeChanged     State = 'T' // file type changed (regular file ↔ symlink)
 	Added           State = 'A' // added
 	Deleted         State = 'D' // deleted
 	Renamed         State = 'R' // renamed
@@ -55,8 +71,9 @@ const (
 	UpdatedUnmerged State = 'U' // updated but unmerged (merge conflict)
 )
 
-// XYFlag holds the two-character XY status (staged + unstaged).
-// “<XY>” in “1”, “2” and “u” lines, where unchanged is “.” not space.
+// XYFlag holds the two-character XY status codes (index + worktree).
+// X represents staged changes, Y represents unstaged changes.
+// Unchanged files use "." in porcelain=v2, not space.
 type XYFlag [2]State
 
 func (xy XYFlag) X() State       { return xy[0] }
@@ -78,85 +95,103 @@ const (
 	FileModeSubmodule  FileMode = 0160000
 )
 
+// String returns the octal string representation of the FileMode, e.g. "100644".
+// Note that this is different from Go octal formatting, which uses a leading "0".
 func (m FileMode) String() string {
 	return strconv.FormatUint(uint64(m), 8)
 }
 
-// SubmoduleStatus represents the 4-character “<sub>” field (for lines “1”, “2” and “u”).
-// “N…” means not a submodule; “S<c><m><u>” for a submodule: <c>='C' if commit changed, <m>='M' if tracked-content changed, <u>='U' if untracked files present.
+// SubmoduleStatus represents submodule state information.
+//
+// For regular files, IsSubmodule is false and other fields are ignored.
+// For submodules, the flags indicate different types of changes:
+//   - CommitChanged: submodule commit differs from what's recorded
+//   - HasModifications: tracked files within submodule have changes
+//   - HasUntracked: untracked changes exist within submodule
 type SubmoduleStatus struct {
-	IsSubmodule      bool // true if first char == 'S'
-	CommitChanged    bool // true if second char == 'C'
-	HasModifications bool // true if third char == 'M'
-	HasUntracked     bool // true if fourth char == 'U'
+	IsSubmodule      bool // true if this entry represents a submodule
+	CommitChanged    bool // true if submodule commit has changed
+	HasModifications bool // true if submodule has tracked changes
+	HasUntracked     bool // true if submodule has untracked changes
 }
 
-// ChangedEntry models a “1” line: an ordinary changed file (not rename/copy).
+// TODO: add String() method to SubmoduleStatus?
+// <sub>       A 4 character field describing the submodule state.
+// 	    "N..." when the entry is not a submodule
+// 	    "S<c><m><u>" when the entry is a submodule
+// 	    <c> is "C" if the commit changed; otherwise "."
+// 	    <m> is "M" if it has tracked changes; otherwise "."
+// 	    <u> is "U" if there are untracked changes; otherwise "."
+
+// ChangedEntry represents a modified file (added, modified, deleted, etc).
 //
-//	1 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <path>
+// Corresponds to porcelain=v2 status lines starting with "1". Does not include
+// renamed or copied files (see [RenameOrCopyEntry]).
 type ChangedEntry struct {
-	XY    XYFlag          // two-character XY status
-	Sub   SubmoduleStatus // 4-character submodule field
-	ModeH FileMode        // <mH> filemode in HEAD (octal string)
-	ModeI FileMode        // <mI> filemode in index (octal string)
-	ModeW FileMode        // <mW> filemode in worktree (octal string)
-	HashH string          // <hH> object name (SHA-1) in HEAD
-	HashI string          // <hI> object name (SHA-1) in index
-	Path  string          // file path relative to repo root
+	XY    XYFlag          // staged and unstaged XY values
+	Sub   SubmoduleStatus // submodule state information
+	ModeH FileMode        // file mode in HEAD commit
+	ModeI FileMode        // file mode in index (staged)
+	ModeW FileMode        // file mode in worktree (unstaged)
+	HashH string          // object hash in HEAD commit
+	HashI string          // object hash in index (staged)
+	Path  string          // file path relative to repository root
 }
 
 func (ChangedEntry) Type() EntryType { return EntryTypeChanged }
 
-// RenameOrCopyEntry models a “2” line: renamed or copied file.
+// RenameOrCopyEntry represents a renamed or copied file.
 //
-//	2 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path><sep><origPath>
+// Corresponds to porcelain=v2 status lines starting with "2". Includes both the
+// original and new file paths, plus a similarity score.
 type RenameOrCopyEntry struct {
-	XY    XYFlag          // two-character XY status
-	Sub   SubmoduleStatus // 4-character submodule field
-	ModeH FileMode        // <mH> filemode in HEAD (octal string)
-	ModeI FileMode        // <mI> filemode in index (octal string)
-	ModeW FileMode        // <mW> filemode in worktree (octal string)
-	HashH string          // <hH> object name (SHA-1) in HEAD
-	HashI string          // <hI> object name (SHA-1) in index
-	Score string          // "<X><score>" (e.g. "R100" or "C75")
-	Path  string          // target path (new path)
-	Orig  string          // origin path (old path)
+	XY    XYFlag          // staged and unstaged XY values
+	Sub   SubmoduleStatus // submodule state information
+	ModeH FileMode        // file mode in HEAD commit
+	ModeI FileMode        // file mode in index (staged)
+	ModeW FileMode        // file mode in worktree (unstaged)
+	HashH string          // object hash in HEAD commit
+	HashI string          // object hash in index (staged)
+	Score string          // similarity score (e.g. "R100", "C75")
+	Path  string          // new file path
+	Orig  string          // original file path
 }
 
 func (RenameOrCopyEntry) Type() EntryType { return EntryTypeRenameOrCopy }
 
-// UnmergedEntry models a “u” line: an unmerged (conflicted) file.
+// UnmergedEntry represents a file with merge conflicts.
 //
-//	u <XY> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <path>
+// Corresponds to porcelain=v2 status lines starting with "u". Contains
+// information about all three merge stages: base (1), ours (2), and theirs (3).
 type UnmergedEntry struct {
-	XY    XYFlag          // two-character XY status (e.g. “DD”, “AU”, “UU”)
-	Sub   SubmoduleStatus // 4-character submodule field
-	Mode1 FileMode        // <m1> mode of stage 1 (common base)
-	Mode2 FileMode        // <m2> mode of stage 2 (ours)
-	Mode3 FileMode        // <m3> mode of stage 3 (theirs)
-	ModeW FileMode        // <mW> mode in worktree
-	Hash1 string          // <h1> SHA of stage-1 blob
-	Hash2 string          // <h2> SHA of stage-2 blob
-	Hash3 string          // <h3> SHA of stage-3 blob
-	Path  string          // file path relative to repo root
+	XY    XYFlag          // conflict type XY values
+	Sub   SubmoduleStatus // submodule state information
+	Mode1 FileMode        // file mode in stage 1 (common base)
+	Mode2 FileMode        // file mode in stage 2 (ours)
+	Mode3 FileMode        // file mode in stage 3 (theirs)
+	ModeW FileMode        // file mode in worktree
+	Hash1 string          // object hash in stage 1 (common base)
+	Hash2 string          // object hash in stage 2 (ours)
+	Hash3 string          // object hash in stage 3 (theirs)
+	Path  string          // file path relative to repository root
 }
 
 func (UnmergedEntry) Type() EntryType { return EntryTypeUnmerged }
 
-// UntrackedEntry models a “?” line: an untracked file.
+// UntrackedEntry represents an untracked file.
 //
-//	? <path>
+// Corresponds to git status lines starting with "?".
 type UntrackedEntry struct {
-	Path string // file path
+	Path string // file path relative to repository root
 }
 
 func (UntrackedEntry) Type() EntryType { return EntryTypeUntracked }
 
-// IgnoredEntry models a “!” line: an ignored file.
+// IgnoredEntry represents an ignored file.
 //
-//	! <path>
+// Corresponds to git status lines starting with "!" (when --ignored is used).
 type IgnoredEntry struct {
-	Path string // file path
+	Path string // file path relative to repository root
 }
 
 func (IgnoredEntry) Type() EntryType { return EntryTypeIgnored }
