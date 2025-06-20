@@ -84,6 +84,9 @@ func parseWithScanner(scanner *bufio.Scanner, pathSep renamePathSep) (*Status, e
 	return &s, scanner.Err()
 }
 
+// Headers take the form of `# <key> <values...>` where <key> is a string like
+// "branch.oid" or "stash". As per the specification, parsers should ignore
+// unknown headers, so we don't return an error if the header is not recognized.
 func parseHeader(line []byte, s *Status) {
 	line, ok := bytes.CutPrefix(line, []byte("# "))
 	if !ok {
@@ -113,8 +116,7 @@ func parseHeader(line []byte, s *Status) {
 		}
 		s.Stash = &StashInfo{Count: int(n)}
 	default:
-		// Unknown header, ignore
-		// TODO: debug log this in the future? could be interesting to see
+		debugLogger.Debug("unrecognized status header", "line", string(line))
 	}
 }
 
