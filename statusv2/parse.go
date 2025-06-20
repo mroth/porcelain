@@ -3,6 +3,7 @@ package statusv2
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -149,17 +150,11 @@ func parseChanged(line []byte) (ChangedEntry, error) {
 	}
 
 	// Fields 3-5: File modes (HEAD, index, worktree)
-	modeH, err := parseFileMode(fields[3])
-	if err != nil {
-		return zero, fmt.Errorf("invalid modeH field: %w", err)
-	}
-	modeI, err := parseFileMode(fields[4])
-	if err != nil {
-		return zero, fmt.Errorf("invalid modeI field: %w", err)
-	}
-	modeW, err := parseFileMode(fields[5])
-	if err != nil {
-		return zero, fmt.Errorf("invalid modeW field: %w", err)
+	modeH, errH := parseFileMode(fields[3])
+	modeI, errI := parseFileMode(fields[4])
+	modeW, errW := parseFileMode(fields[5])
+	if err := errors.Join(errH, errI, errW); err != nil {
+		return zero, fmt.Errorf("invalid file mode fields: %w", err)
 	}
 
 	// Fields 6-7: Object names (HEAD, index)
@@ -205,17 +200,11 @@ func parseRenameOrCopy(line []byte, pathSep renamePathSep) (RenameOrCopyEntry, e
 	}
 
 	// Fields 3-5: File modes (HEAD, index, worktree)
-	modeH, err := parseFileMode(fields[3])
-	if err != nil {
-		return zero, fmt.Errorf("invalid modeH field: %w", err)
-	}
-	modeI, err := parseFileMode(fields[4])
-	if err != nil {
-		return zero, fmt.Errorf("invalid modeI field: %w", err)
-	}
-	modeW, err := parseFileMode(fields[5])
-	if err != nil {
-		return zero, fmt.Errorf("invalid modeW field: %w", err)
+	modeH, errH := parseFileMode(fields[3])
+	modeI, errI := parseFileMode(fields[4])
+	modeW, errW := parseFileMode(fields[5])
+	if err := errors.Join(errH, errI, errW); err != nil {
+		return zero, fmt.Errorf("invalid file mode fields: %w", err)
 	}
 
 	// Fields 6-7: Object names (HEAD, index)
@@ -277,21 +266,12 @@ func parseUnmerged(line []byte) (UnmergedEntry, error) {
 	}
 
 	// Fields 3-6: File modes (stage 1, stage 2, stage 3, worktree)
-	mode1, err := parseFileMode(fields[3])
-	if err != nil {
-		return zero, fmt.Errorf("invalid mode1 field: %w", err)
-	}
-	mode2, err := parseFileMode(fields[4])
-	if err != nil {
-		return zero, fmt.Errorf("invalid mode2 field: %w", err)
-	}
-	mode3, err := parseFileMode(fields[5])
-	if err != nil {
-		return zero, fmt.Errorf("invalid mode3 field: %w", err)
-	}
-	modeW, err := parseFileMode(fields[6])
-	if err != nil {
-		return zero, fmt.Errorf("invalid modeW field: %w", err)
+	mode1, err1 := parseFileMode(fields[3])
+	mode2, err2 := parseFileMode(fields[4])
+	mode3, err3 := parseFileMode(fields[5])
+	modeW, errW := parseFileMode(fields[6])
+	if err := errors.Join(err1, err2, err3, errW); err != nil {
+		return zero, fmt.Errorf("invalid file mode fields: %w", err)
 	}
 
 	// Fields 7-9: Object names (stage 1, stage 2, stage 3)
