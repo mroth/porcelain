@@ -56,14 +56,21 @@ type Entry interface {
 	Type() EntryType
 }
 
-// State represents a single character from Git's XY status codes.
+// State represents a single character from Git porcelain=v2 XY status codes.
 type State byte
 
 // Git status state codes for index (X) and worktree (Y) changes.
+//
+// The [Unmodified] state is represented by a dot ('.') in porcelain=v2,
+// which is different from the space (' ') used in porcelain=v1.
+//
+// Untracked and ignored files are no longer represented in XY flag states in
+// porcelain=v2, but rather as separate entry types ([UntrackedEntry] and
+// [IgnoredEntry]).
 const (
-	Unmodified      State = '.' // no changes
+	Unmodified      State = '.' // unmodified (no changes)
 	Modified        State = 'M' // modified
-	TypeChanged     State = 'T' // file type changed (regular file ↔ symlink)
+	TypeChanged     State = 'T' // file type changed (regular file, symbolic link or submodule)
 	Added           State = 'A' // added
 	Deleted         State = 'D' // deleted
 	Renamed         State = 'R' // renamed

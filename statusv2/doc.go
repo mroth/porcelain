@@ -6,7 +6,9 @@ both regular line-terminated output and NUL-terminated output (with -z flag).
 
 # Basic Usage
 
-[Parse] takes an [io.Reader] containing `git status --porcelain=v2` output:
+[Parse] takes an [io.Reader] containing `git status --porcelain=v2` output. Branch
+and stash information are also parsed if the `--branch` and/or `--show-stash` flags were
+used with the command.
 
 	r := bytes.NewReader(gitStatusOutput)
 	status, err := statusv2.Parse(r)
@@ -61,6 +63,8 @@ information. The format is stable across Git versions and designed for
 programmatic consumption.
 
 For more information about the porcelain=v2 format, see the Git documentation
-for `git status --help`.
+for [git status].
+
+[git status]: https://git-scm.com/docs/git-status#_porcelain_format_version_2
 */
 package statusv2
