@@ -1,6 +1,7 @@
 package statusv2
 
 import (
+	"bytes"
 	"os"
 	"strings"
 	"testing"
@@ -8,25 +9,43 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+var (
+	sampleHeaderComment        = []byte("# comment non-standard header to be ignored")
+	sampleHeaderBranchOID      = []byte("# branch.oid 34064be349d4a03ed158aba170d8d2db6ff9e3e0")
+	sampleHeaderBranchHead     = []byte("# branch.head main")
+	sampleHeaderBranchUpstream = []byte("# branch.upstream origin/main")
+	sampleHeaderBranchAB       = []byte("# branch.ab +6 -3")
+	sampleHeaderStash          = []byte("# stash 3")
+	sampleEntryChanged         = []byte("1 M. N... 100644 100644 100644 1234567890abcdef1234567890abcdef12345678 1234567890abcdef1234567890abcdef12345678 file_changed.txt")
+	sampleEntryRenamed         = []byte("2 R. N... 100644 100644 100644 1234567890abcdef1234567890abcdef12345678 1234567890abcdef1234567890abcdef12345678 R100 file_renamed.txt\tfile_original.txt")
+	sampleEntryUnmerged        = []byte("u UU N... 100644 100644 100644 100644 1234567890abcdef1234567890abcdef12345678 abcdef1234567890abcdef1234567890abcdef12 fedcba0987654321fedcba0987654321fedcba09 file_unmerged.txt")
+	sampleEntryUntracked       = []byte("? file_untracked.txt")
+	sampleEntryIgnored         = []byte("! file_ignored.txt")
+)
+
 // samplePorcelainV2Output is a contrived sample output of `git status --porcelain=v2 --branch --show-status`.
 // It contains branch information, a stash entry, and one changed file entry for each
 // of the EntryType variants: Changed, RenameOrCopy, Unmerged, Untracked, and Ignored.
-const samplePorcelainV2Output = `# comment skipped non-standard header
-# branch.oid 34064be349d4a03ed158aba170d8d2db6ff9e3e0
-# branch.head main
-# branch.upstream origin/main
-# branch.ab +6 -3
-# stash 3
-# branch.upstream origin/main
-1 M. N... 100644 100644 100644 1234567890abcdef1234567890abcdef12345678 1234567890abcdef1234567890abcdef12345678 file_changed.txt
-2 R. N... 100644 100644 100644 1234567890abcdef1234567890abcdef12345678 1234567890abcdef1234567890abcdef12345678 R100 file_renamed.txt	file_original.txt
-1 U. N... 100644 100644 100644 1234567890abcdef1234567890abcdef12345678 1234567890abcdef1234567890abcdef12345678 file_unmerged.txt
-? file_untracked.txt
-! file_ignored.txt
-`
+//
+// It also includes a non-standard header comment, and a duplicate upstream header,
+// neither of which should appear in the wild, but should not cause parsing to fail.
+var samplePorcelainV2Output = bytes.Join([][]byte{
+	sampleHeaderComment,
+	sampleHeaderBranchOID,
+	sampleHeaderBranchHead,
+	sampleHeaderBranchUpstream,
+	sampleHeaderBranchAB,
+	sampleHeaderStash,
+	sampleHeaderBranchUpstream,
+	sampleEntryChanged,
+	sampleEntryRenamed,
+	sampleEntryUnmerged,
+	sampleEntryUntracked,
+	sampleEntryIgnored,
+}, []byte("\n"))
 
 func TestParse(t *testing.T) {
-	r := strings.NewReader(samplePorcelainV2Output)
+	r := bytes.NewReader(samplePorcelainV2Output)
 	got, err := Parse(r)
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
@@ -63,14 +82,16 @@ func TestParse(t *testing.T) {
 				Path:  "file_renamed.txt",
 				Orig:  "file_original.txt",
 			},
-			ChangedEntry{
-				XY:    XYFlag{UpdatedUnmerged, Unmodified},
+			UnmergedEntry{
+				XY:    XYFlag{UpdatedUnmerged, UpdatedUnmerged},
 				Sub:   SubmoduleStatus{IsSubmodule: false},
-				ModeH: 0100644,
-				ModeI: 0100644,
+				Mode1: 0100644,
+				Mode2: 0100644,
+				Mode3: 0100644,
 				ModeW: 0100644,
-				HashH: "1234567890abcdef1234567890abcdef12345678",
-				HashI: "1234567890abcdef1234567890abcdef12345678",
+				Hash1: "1234567890abcdef1234567890abcdef12345678",
+				Hash2: "abcdef1234567890abcdef1234567890abcdef12",
+				Hash3: "fedcba0987654321fedcba0987654321fedcba09",
 				Path:  "file_unmerged.txt",
 			},
 			UntrackedEntry{
@@ -134,6 +155,7 @@ func TestParseZ(t *testing.T) {
 // Each test case specifies a file containing the output of `git status --porcelain=v2`.
 // Files should be placed in the "testdata" directory.
 func TestParseGolden(t *testing.T) {
+	t.Skip("Skipping golden tests, none defined yet")
 	testcases := []struct {
 		file    string
 		desc    string // optional human readable description
@@ -155,6 +177,75 @@ func TestParseGolden(t *testing.T) {
 			}
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("ParseFile() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestParseHeader tests the parseHeader function with various valid and invalid inputs.
+func TestParseHeader(t *testing.T) {
+	t.Run("supported headers", func(t *testing.T) {
+		headers := [][]byte{
+			[]byte("# branch.oid 34064be349d4a03ed158aba170d8d2db6ff9e3e0"),
+			[]byte("# branch.head main"),
+			[]byte("# branch.upstream origin/main"),
+			[]byte("# branch.ab +2 -1"),
+			[]byte("# stash 3"),
+		}
+
+		status := &Status{}
+		for _, header := range headers {
+			parseHeader(header, status)
+		}
+
+		want := &Status{
+			Branch: &BranchInfo{
+				OID:      "34064be349d4a03ed158aba170d8d2db6ff9e3e0",
+				Head:     "main",
+				Upstream: "origin/main",
+				Ahead:    2,
+				Behind:   1,
+			},
+			Stash: &StashInfo{Count: 3},
+		}
+
+		if diff := cmp.Diff(want, status); diff != "" {
+			t.Errorf("parseHeader() mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	// Test unsupported or error cases - these should be ignored
+	errorCases := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "missing prefix",
+			input: "branch.oid 34064be349d4a03ed158aba170d8d2db6ff9e3e0",
+		},
+		{
+			name:  "missing key value separator",
+			input: "# branch.oid34064be349d4a03ed158aba170d8d2db6ff9e3e0",
+		},
+		{
+			name:  "invalid stash count format",
+			input: "# stash two",
+		},
+		{
+			name:  "unrecognized header",
+			input: "# unknown.header somevalue",
+		},
+	}
+
+	for _, tc := range errorCases {
+		t.Run(tc.name, func(t *testing.T) {
+			original := &Status{}
+			got := &Status{}
+			parseHeader([]byte(tc.input), got)
+
+			// Status should remain unchanged for invalid headers
+			if diff := cmp.Diff(original, got); diff != "" {
+				t.Errorf("parseHeader() should not modify Status for invalid input, but got changes (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -281,6 +372,21 @@ func TestParseChanged(t *testing.T) {
 		{
 			name:    "invalid line - too few fields",
 			input:   "1 A. N... 000000 100644 100644 0000000000000000000000000000000000000000",
+			wantErr: true,
+		},
+		{
+			name:    "invalid XY flag returns error",
+			input:   "1 A N... 000000 100644 100644 0000000000000000000000000000000000000000 fa49b077972391ad58037050f2a75f74e3671e92 file.txt",
+			wantErr: true,
+		},
+		{
+			name:    "invalid submodule status returns error",
+			input:   "1 A. N.. 000000 100644 100644 0000000000000000000000000000000000000000 fa49b077972391ad58037050f2a75f74e3671e92 file.txt",
+			wantErr: true,
+		},
+		{
+			name:    "invalid file mode returns error",
+			input:   "1 A. N... 10064g 100644 100644 0000000000000000000000000000000000000000 fa49b077972391ad58037050f2a75f74e3671e92 file.txt",
 			wantErr: true,
 		},
 		{
@@ -443,6 +549,21 @@ func TestParseRenameOrCopied(t *testing.T) {
 		{
 			name:    "missing tab separator in paths",
 			input:   "2 R. N... 100644 100644 100644 f2376e2bab6c5194410bd8a55630f83f933d2f34 f2376e2bab6c5194410bd8a55630f83f933d2f34 R100 new.txt old.txt",
+			wantErr: true,
+		},
+		{
+			name:    "invalid XY flag returns error",
+			input:   "2 R N... 100644 100644 100644 f2376e2bab6c5194410bd8a55630f83f933d2f34 f2376e2bab6c5194410bd8a55630f83f933d2f34 R100 new.txt\told.txt",
+			wantErr: true,
+		},
+		{
+			name:    "invalid submodule status returns error",
+			input:   "2 R. N.. 100644 100644 100644 f2376e2bab6c5194410bd8a55630f83f933d2f34 f2376e2bab6c5194410bd8a55630f83f933d2f34 R100 new.txt\told.txt",
+			wantErr: true,
+		},
+		{
+			name:    "invalid file mode returns error",
+			input:   "2 R. N... 10064g 100644 100644 f2376e2bab6c5194410bd8a55630f83f933d2f34 f2376e2bab6c5194410bd8a55630f83f933d2f34 R100 new.txt\told.txt",
 			wantErr: true,
 		},
 		{
@@ -619,6 +740,21 @@ func TestParseUnmerged(t *testing.T) {
 		{
 			name:    "invalid line - too few fields",
 			input:   "u UU N... 100644 100644 100644 100644 f2376e2bab6c5194410bd8a55630f83f933d2f34 b3266c11446a04580631ad3edf7e20789dc477d0",
+			wantErr: true,
+		},
+		{
+			name:    "invalid XY flag returns error",
+			input:   "u U N... 100644 100644 100644 100644 f2376e2bab6c5194410bd8a55630f83f933d2f34 b3266c11446a04580631ad3edf7e20789dc477d0 0942ce73bfaae4c3356c727901d1b4b933cf7b88 file.txt",
+			wantErr: true,
+		},
+		{
+			name:    "invalid submodule status returns error",
+			input:   "u UU N.. 100644 100644 100644 100644 f2376e2bab6c5194410bd8a55630f83f933d2f34 b3266c11446a04580631ad3edf7e20789dc477d0 0942ce73bfaae4c3356c727901d1b4b933cf7b88 file.txt",
+			wantErr: true,
+		},
+		{
+			name:    "invalid file mode returns error",
+			input:   "u UU N... 10064g 100644 100644 100644 f2376e2bab6c5194410bd8a55630f83f933d2f34 b3266c11446a04580631ad3edf7e20789dc477d0 0942ce73bfaae4c3356c727901d1b4b933cf7b88 file.txt",
 			wantErr: true,
 		},
 		{
@@ -885,6 +1021,72 @@ func TestParseFileMode(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Errorf("parseFileMode() = %o, want %o", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestParseUntracked(t *testing.T) {
+	testcases := []struct {
+		name    string
+		input   string
+		want    UntrackedEntry
+		wantErr bool
+	}{
+		{
+			name:    "simple untracked file",
+			input:   "? untracked.txt",
+			want:    UntrackedEntry{Path: "untracked.txt"},
+			wantErr: false,
+		},
+		{
+			name:    "incorrect prefix returns error",
+			input:   "! untracked.txt",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseUntracked([]byte(tc.input))
+			if (err != nil) != tc.wantErr {
+				t.Errorf("parseUntracked() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("parseUntracked() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestParseIgnored(t *testing.T) {
+	testcases := []struct {
+		name    string
+		input   string
+		want    IgnoredEntry
+		wantErr bool
+	}{
+		{
+			name:    "simple ignored file",
+			input:   "! ignored.txt",
+			want:    IgnoredEntry{Path: "ignored.txt"},
+			wantErr: false,
+		},
+		{
+			name:    "incorrect prefix returns error",
+			input:   "? ignored.txt",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseIgnored([]byte(tc.input))
+			if (err != nil) != tc.wantErr {
+				t.Errorf("parseIgnored() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("parseIgnored() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

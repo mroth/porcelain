@@ -24,10 +24,11 @@ func FuzzParseChanged(f *testing.F) {
 
 // Fuzz test for parseRenameOrCopy function
 func FuzzParseRenameOrCopy(f *testing.F) {
-	// Add some seed inputs with both tab and NUL separators
-	f.Add([]byte("2 R. N... 100644 100644 100644 1234567890abcdef1234567890abcdef12345678 1234567890abcdef1234567890abcdef12345678 R100 file_renamed.txt\tfile_original.txt"), byte('\t'))
+	// Add some seed inputs with both tab and NUL separators (including mismatches)
 	f.Add([]byte("2 C. N... 100644 100644 100644 1234567890abcdef1234567890abcdef12345678 1234567890abcdef1234567890abcdef12345678 C75 file_copied.txt\tfile_source.txt"), byte('\t'))
+	f.Add([]byte("2 C. N... 100644 100644 100644 1234567890abcdef1234567890abcdef12345678 1234567890abcdef1234567890abcdef12345678 C75 file_copied.txt\tfile_source.txt"), byte('\x00'))
 	f.Add([]byte("2 R. N... 100644 100644 100644 1234567890abcdef1234567890abcdef12345678 1234567890abcdef1234567890abcdef12345678 R100 file_renamed.txt\x00file_original.txt"), byte('\x00'))
+	f.Add([]byte("2 R. N... 100644 100644 100644 1234567890abcdef1234567890abcdef12345678 1234567890abcdef1234567890abcdef12345678 R100 file_renamed.txt\x00file_original.txt"), byte('\t'))
 
 	f.Fuzz(func(t *testing.T, data []byte, sep byte) {
 		// Parser should never panic, only return an error for invalid input
@@ -97,11 +98,11 @@ func FuzzParseIgnored(f *testing.F) {
 // Fuzz test for parseHeader function
 func FuzzParseHeader(f *testing.F) {
 	// Add some seed inputs
-	f.Add([]byte("# branch.oid 34064be349d4a03ed158aba170d8d2db6ff9e3e0"))
-	f.Add([]byte("# branch.head main"))
-	f.Add([]byte("# branch.upstream origin/main"))
-	f.Add([]byte("# branch.ab +6 -3"))
-	f.Add([]byte("# stash 3"))
+	f.Add(sampleHeaderBranchOID)
+	f.Add(sampleHeaderBranchHead)
+	f.Add(sampleHeaderBranchUpstream)
+	f.Add(sampleHeaderBranchAB)
+	f.Add(sampleHeaderStash)
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		// Parser should never panic, only return without action on invalid input
