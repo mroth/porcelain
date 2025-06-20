@@ -1,0 +1,25 @@
+on: [push, pull_request]
+name: test
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      # Currently, actions/setup-go does not set GOTOOLCHAIN to "local",
+      # necessary to avoid the toolchain auto-updating to the version in go.mod.
+      # cf. https://github.com/actions/setup-go/issues/491
+      GOTOOLCHAIN: local
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["stable"]
+    name: Go ${{ matrix.go }} test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Test
+        run: go test -race ./...
