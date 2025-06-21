@@ -6,7 +6,7 @@
 
 Porcelain provides parsers for Git's [porcelain status output] in Go.
 
-  - [github.com/mroth/porcelain/statusv1] provides onlylegacy `porcelain=v1` status
+  - [github.com/mroth/porcelain/statusv1] provides only legacy `porcelain=v1` status
     codes, and intentionally does not implement parsing.
   - [github.com/mroth/porcelain/statusv2] implements `porcelain=v2` format parsing.
 
