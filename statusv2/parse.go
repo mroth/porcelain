@@ -17,7 +17,7 @@ var debugLogger = slog.New(slog.DiscardHandler)
 //
 // Additional status headers such as `--branch` and `--show-status` are parsed if present.
 func Parse(r io.Reader) (*Status, error) {
-	return parseWithScanner(bufio.NewScanner(r), tabSeparator)
+	return parse(bufio.NewScanner(r), tabSeparator)
 }
 
 // ParseZ parses the output of `git status --porcelain=v2 -z`.
@@ -27,7 +27,7 @@ func Parse(r io.Reader) (*Status, error) {
 //
 // For additional details, see the documentation of [Parse].
 func ParseZ(r io.Reader) (*Status, error) {
-	return parseWithScanner(newZScanner(r), nulSeparator)
+	return parse(newZScanner(r), nulSeparator)
 }
 
 // renamePathSep represents the byte used to separate paths in rename/copy entries
@@ -38,7 +38,10 @@ const (
 	nulSeparator renamePathSep = '\x00' // -z mode: paths separated by NUL
 )
 
-func parseWithScanner(scanner *bufio.Scanner, pathSep renamePathSep) (*Status, error) {
+// parse is the core parsing function that reads lines from the provided scanner
+// and constructs the Status struct. It uses the provided pathSep to determine
+// how to split paths in rename/copy entries.
+func parse(scanner *bufio.Scanner, pathSep renamePathSep) (*Status, error) {
 	s := Status{}
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -49,33 +52,33 @@ func parseWithScanner(scanner *bufio.Scanner, pathSep renamePathSep) (*Status, e
 		case '#':
 			// parseHeader manages the Branch or Stash field structs of the
 			// Status struct directly, so we pass a pointer to the whole struct.
-			parseHeader(line, &s)
+			parseHeaderEntry(line, &s)
 		case '1':
-			entry, err := parseChanged(line)
+			entry, err := parseChangedEntry(line)
 			if err != nil {
 				return nil, err
 			}
 			s.Entries = append(s.Entries, entry)
 		case '2':
-			entry, err := parseRenameOrCopy(line, pathSep)
+			entry, err := parseRenameOrCopyEntry(line, pathSep)
 			if err != nil {
 				return nil, err
 			}
 			s.Entries = append(s.Entries, entry)
 		case 'u':
-			entry, err := parseUnmerged(line)
+			entry, err := parseUnmergedEntry(line)
 			if err != nil {
 				return nil, err
 			}
 			s.Entries = append(s.Entries, entry)
 		case '?':
-			entry, err := parseUntracked(line)
+			entry, err := parseUntrackedEntry(line)
 			if err != nil {
 				return nil, err
 			}
 			s.Entries = append(s.Entries, entry)
 		case '!':
-			entry, err := parseIgnored(line)
+			entry, err := parseIgnoredEntry(line)
 			if err != nil {
 				return nil, err
 			}
@@ -88,7 +91,7 @@ func parseWithScanner(scanner *bufio.Scanner, pathSep renamePathSep) (*Status, e
 // Headers take the form of `# <key> <values...>` where <key> is a string like
 // "branch.oid" or "stash". As per the specification, parsers should ignore
 // unknown headers, so we don't return an error if the header is not recognized.
-func parseHeader(line []byte, s *Status) {
+func parseHeaderEntry(line []byte, s *Status) {
 	line, ok := bytes.CutPrefix(line, []byte("# "))
 	if !ok {
 		return
@@ -130,7 +133,7 @@ func ensureBranch(s *Status) *BranchInfo {
 
 // Ordinary changed entries have the following format:
 // 1 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <path>
-func parseChanged(line []byte) (ChangedEntry, error) {
+func parseChangedEntry(line []byte) (ChangedEntry, error) {
 	var zero ChangedEntry
 	fields := bytes.SplitN(line, []byte{' '}, 9)
 	if len(fields) < 9 || !bytes.HasPrefix(fields[0], []byte{'1'}) {
@@ -180,7 +183,7 @@ func parseChanged(line []byte) (ChangedEntry, error) {
 
 // Renamed or copied entries have the following format:
 // 2 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path><sep><origPath>
-func parseRenameOrCopy(line []byte, pathSep renamePathSep) (RenameOrCopyEntry, error) {
+func parseRenameOrCopyEntry(line []byte, pathSep renamePathSep) (RenameOrCopyEntry, error) {
 	var zero RenameOrCopyEntry
 	fields := bytes.SplitN(line, []byte{' '}, 10)
 	if len(fields) < 10 || !bytes.HasPrefix(fields[0], []byte{'2'}) {
@@ -246,7 +249,7 @@ func parseRenameOrCopy(line []byte, pathSep renamePathSep) (RenameOrCopyEntry, e
 
 // Unmerged entries have the following format:
 // u <XY> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <path>
-func parseUnmerged(line []byte) (UnmergedEntry, error) {
+func parseUnmergedEntry(line []byte) (UnmergedEntry, error) {
 	var zero UnmergedEntry
 	fields := bytes.SplitN(line, []byte{' '}, 11)
 	if len(fields) < 11 || !bytes.HasPrefix(fields[0], []byte{'u'}) {
@@ -298,7 +301,7 @@ func parseUnmerged(line []byte) (UnmergedEntry, error) {
 
 // Untracked items have the following format:
 // ? <path>
-func parseUntracked(line []byte) (UntrackedEntry, error) {
+func parseUntrackedEntry(line []byte) (UntrackedEntry, error) {
 	pathBytes, ok := bytes.CutPrefix(line, []byte{'?', ' '})
 	if !ok {
 		return UntrackedEntry{}, fmt.Errorf("invalid untracked entry line: %q", line)
@@ -309,7 +312,7 @@ func parseUntracked(line []byte) (UntrackedEntry, error) {
 
 // Ignored items have the following format:
 // ! <path>
-func parseIgnored(line []byte) (IgnoredEntry, error) {
+func parseIgnoredEntry(line []byte) (IgnoredEntry, error) {
 	pathBytes, ok := bytes.CutPrefix(line, []byte{'!', ' '})
 	if !ok {
 		return IgnoredEntry{}, fmt.Errorf("invalid ignored entry line: %q", line)

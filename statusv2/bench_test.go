@@ -21,45 +21,45 @@ func Benchmark_parseHeaders(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		parseHeader(sampleHeaderBranchOID, &s)
-		parseHeader(sampleHeaderBranchHead, &s)
-		parseHeader(sampleHeaderBranchUpstream, &s)
-		parseHeader(sampleHeaderBranchAB, &s)
-		parseHeader(sampleHeaderStash, &s)
+		parseHeaderEntry(sampleHeaderBranchOID, &s)
+		parseHeaderEntry(sampleHeaderBranchHead, &s)
+		parseHeaderEntry(sampleHeaderBranchUpstream, &s)
+		parseHeaderEntry(sampleHeaderBranchAB, &s)
+		parseHeaderEntry(sampleHeaderStash, &s)
 	}
 }
 
 func Benchmark_parseChange(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		parseChanged(sampleEntryChanged)
+		parseChangedEntry(sampleEntryChanged)
 	}
 }
 
 func Benchmark_parseRenameOrCopy(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		parseRenameOrCopy(sampleEntryRenamed, tabSeparator)
+		parseRenameOrCopyEntry(sampleEntryRenamed, tabSeparator)
 	}
 }
 
 func Benchmark_parseUnmerged(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		parseUnmerged(sampleEntryUnmerged)
+		parseUnmergedEntry(sampleEntryUnmerged)
 	}
 }
 
 func Benchmark_parseUntracked(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		parseUntracked(sampleEntryUntracked)
+		parseUntrackedEntry(sampleEntryUntracked)
 	}
 }
 
 func Benchmark_parseIgnored(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		parseIgnored(sampleEntryIgnored)
+		parseIgnoredEntry(sampleEntryIgnored)
 	}
 }

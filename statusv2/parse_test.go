@@ -182,8 +182,8 @@ func TestParseGolden(t *testing.T) {
 	}
 }
 
-// TestParseHeader tests the parseHeader function with various valid and invalid inputs.
-func TestParseHeader(t *testing.T) {
+// Test_parseHeaderEntry tests the parseHeaderEntry function with various valid and invalid inputs.
+func Test_parseHeaderEntry(t *testing.T) {
 	t.Run("supported headers", func(t *testing.T) {
 		headers := [][]byte{
 			[]byte("# branch.oid 34064be349d4a03ed158aba170d8d2db6ff9e3e0"),
@@ -195,7 +195,7 @@ func TestParseHeader(t *testing.T) {
 
 		status := &Status{}
 		for _, header := range headers {
-			parseHeader(header, status)
+			parseHeaderEntry(header, status)
 		}
 
 		want := &Status{
@@ -241,7 +241,7 @@ func TestParseHeader(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			original := &Status{}
 			got := &Status{}
-			parseHeader([]byte(tc.input), got)
+			parseHeaderEntry([]byte(tc.input), got)
 
 			// Status should remain unchanged for invalid headers
 			if diff := cmp.Diff(original, got); diff != "" {
@@ -251,8 +251,8 @@ func TestParseHeader(t *testing.T) {
 	}
 }
 
-// TestParseChanged tests the parseChanged function with various valid and invalid inputs.
-func TestParseChanged(t *testing.T) {
+// Test_parseChangedEntry tests the parseChangedEntry function with various valid and invalid inputs.
+func Test_parseChangedEntry(t *testing.T) {
 	testcases := []struct {
 		name    string
 		input   string
@@ -398,7 +398,7 @@ func TestParseChanged(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseChanged([]byte(tc.input))
+			got, err := parseChangedEntry([]byte(tc.input))
 			if (err != nil) != tc.wantErr {
 				t.Errorf("parseChanged() error = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -409,8 +409,8 @@ func TestParseChanged(t *testing.T) {
 	}
 }
 
-// TestParseRenameOrCopied tests the parseRenameOrCopy function with various valid and invalid inputs.
-func TestParseRenameOrCopied(t *testing.T) {
+// Test_parseRenameOrCopyEntry tests the parseRenameOrCopyEntry function with various valid and invalid inputs.
+func Test_parseRenameOrCopyEntry(t *testing.T) {
 	testcases := []struct {
 		name    string
 		input   string
@@ -575,7 +575,7 @@ func TestParseRenameOrCopied(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseRenameOrCopy([]byte(tc.input), tabSeparator)
+			got, err := parseRenameOrCopyEntry([]byte(tc.input), tabSeparator)
 			if (err != nil) != tc.wantErr {
 				t.Errorf("parseRenameOrCopy() error = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -588,8 +588,8 @@ func TestParseRenameOrCopied(t *testing.T) {
 	}
 }
 
-// TestParseUnmerged tests the parseUnmerged function with various valid and invalid inputs.
-func TestParseUnmerged(t *testing.T) {
+// Test_parseUnmergedEntry tests the parseUnmergedEntry function with various valid and invalid inputs.
+func Test_parseUnmergedEntry(t *testing.T) {
 	testcases := []struct {
 		name    string
 		input   string
@@ -766,7 +766,7 @@ func TestParseUnmerged(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseUnmerged([]byte(tc.input))
+			got, err := parseUnmergedEntry([]byte(tc.input))
 			if (err != nil) != tc.wantErr {
 				t.Errorf("parseUnmerged() error = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -777,7 +777,7 @@ func TestParseUnmerged(t *testing.T) {
 	}
 }
 
-func TestParseXYFlag(t *testing.T) {
+func Test_parseXYFlag(t *testing.T) {
 	testcases := []struct {
 		name    string
 		input   []byte
@@ -856,7 +856,7 @@ func TestParseXYFlag(t *testing.T) {
 	}
 }
 
-func TestParseSubmoduleStatus(t *testing.T) {
+func Test_parseSubmoduleStatus(t *testing.T) {
 	testcases := []struct {
 		name    string
 		input   []byte
@@ -948,7 +948,7 @@ func TestParseSubmoduleStatus(t *testing.T) {
 	}
 }
 
-func TestParseFileMode(t *testing.T) {
+func Test_parseFileMode(t *testing.T) {
 	testcases := []struct {
 		name    string
 		input   []byte
@@ -1026,7 +1026,7 @@ func TestParseFileMode(t *testing.T) {
 	}
 }
 
-func TestParseUntracked(t *testing.T) {
+func Test_parseUntrackedEntry(t *testing.T) {
 	testcases := []struct {
 		name    string
 		input   string
@@ -1048,7 +1048,7 @@ func TestParseUntracked(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseUntracked([]byte(tc.input))
+			got, err := parseUntrackedEntry([]byte(tc.input))
 			if (err != nil) != tc.wantErr {
 				t.Errorf("parseUntracked() error = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -1059,7 +1059,7 @@ func TestParseUntracked(t *testing.T) {
 	}
 }
 
-func TestParseIgnored(t *testing.T) {
+func Test_parseIgnoredEntry(t *testing.T) {
 	testcases := []struct {
 		name    string
 		input   string
@@ -1081,7 +1081,7 @@ func TestParseIgnored(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseIgnored([]byte(tc.input))
+			got, err := parseIgnoredEntry([]byte(tc.input))
 			if (err != nil) != tc.wantErr {
 				t.Errorf("parseIgnored() error = %v, wantErr %v", err, tc.wantErr)
 			}

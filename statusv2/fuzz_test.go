@@ -18,7 +18,7 @@ func FuzzParseChanged(f *testing.F) {
 				t.Errorf("parseChanged panicked with input %q: %v", data, r)
 			}
 		}()
-		parseChanged(data)
+		parseChangedEntry(data)
 	})
 }
 
@@ -37,7 +37,7 @@ func FuzzParseRenameOrCopy(f *testing.F) {
 				t.Errorf("parseRenameOrCopy panicked with input %q, sep %q: %v", data, sep, r)
 			}
 		}()
-		parseRenameOrCopy(data, renamePathSep(sep))
+		parseRenameOrCopyEntry(data, renamePathSep(sep))
 	})
 }
 
@@ -55,7 +55,7 @@ func FuzzParseUnmerged(f *testing.F) {
 				t.Errorf("parseUnmerged panicked with input %q: %v", data, r)
 			}
 		}()
-		parseUnmerged(data)
+		parseUnmergedEntry(data)
 	})
 }
 
@@ -73,7 +73,7 @@ func FuzzParseUntracked(f *testing.F) {
 				t.Errorf("parseUntracked panicked with input %q: %v", data, r)
 			}
 		}()
-		parseUntracked(data)
+		parseUntrackedEntry(data)
 	})
 }
 
@@ -91,7 +91,7 @@ func FuzzParseIgnored(f *testing.F) {
 				t.Errorf("parseIgnored panicked with input %q: %v", data, r)
 			}
 		}()
-		parseIgnored(data)
+		parseIgnoredEntry(data)
 	})
 }
 
@@ -112,6 +112,6 @@ func FuzzParseHeader(f *testing.F) {
 			}
 		}()
 		var s Status
-		parseHeader(data, &s)
+		parseHeaderEntry(data, &s)
 	})
 }
