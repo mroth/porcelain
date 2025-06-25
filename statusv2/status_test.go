@@ -5,7 +5,7 @@ import "testing"
 func TestXYFlag_Accessors(t *testing.T) {
 	flags := XYFlag{Modified, Unmodified}
 	wantX, wantY := Modified, Unmodified
-	x, y := flags.X(), flags.Y()
+	x, y := flags.X, flags.Y
 	if x != wantX {
 		t.Errorf("Expected X to be %v, got %v", wantX, x)
 	}

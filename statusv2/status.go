@@ -81,11 +81,12 @@ const (
 // XYFlag holds the two-character XY status codes (index + worktree).
 // X represents staged changes, Y represents unstaged changes.
 // Unchanged files use "." in porcelain=v2, not space.
-type XYFlag [2]State
+type XYFlag struct {
+	X State // index status
+	Y State // working tree status
+}
 
-func (xy XYFlag) X() State       { return xy[0] }
-func (xy XYFlag) Y() State       { return xy[1] }
-func (xy XYFlag) String() string { return string(xy[0]) + string(xy[1]) }
+func (xy XYFlag) String() string { return string(xy.X) + string(xy.Y) }
 
 // A FileMode represents the kind of tree entries used by git. It resembles
 // regular file systems modes, although FileModes are considerably simpler.

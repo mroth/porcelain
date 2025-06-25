@@ -355,5 +355,5 @@ func parseXYFlag(field []byte) (XYFlag, error) {
 	if len(field) != 2 {
 		return XYFlag{}, fmt.Errorf("invalid XY field: expected 2 characters, got %d", len(field))
 	}
-	return XYFlag{State(field[0]), State(field[1])}, nil
+	return XYFlag{X: State(field[0]), Y: State(field[1])}, nil
 }
