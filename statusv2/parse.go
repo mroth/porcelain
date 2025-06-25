@@ -38,9 +38,10 @@ const (
 	nulSeparator renamePathSep = '\x00' // -z mode: paths separated by NUL
 )
 
-// parse is the core parsing function that reads lines from the provided scanner
-// and constructs the Status struct. It uses the provided pathSep to determine
-// how to split paths in rename/copy entries.
+// Core parsing function that reads lines from the provided scanner and
+// constructs the Status struct. The provided scanner should tokenize entries
+// (or "lines"), omitting the entry terminator. The provided pathSep byte is
+// used to determine how to split paths in rename/copy entries.
 func parse(scanner *bufio.Scanner, pathSep renamePathSep) (*Status, error) {
 	s := Status{}
 	for scanner.Scan() {

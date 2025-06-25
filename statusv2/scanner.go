@@ -7,22 +7,26 @@ import (
 	"io"
 )
 
-// newZScanner creates a scanner that properly tokenizes git status --porcelain=v2 -z output.
-// It handles the complex case where rename/copy entries (type "2") contain two NUL bytes:
-// one as the path separator and another as the line terminator. Regular entries only
-// have the line terminator NUL byte.
+// newZScanner creates a scanner that tokenizes git status --porcelain=v2 -z
+// output, returning each entry as a token, omitting the NUL byte that serves as
+// the line terminator.
+//
+// It handles the complex case for rename/copy entries (type "2") which contain
+// two NUL bytes: one as the path separator and another as the line terminator.
+// Regular entries only have the line terminator NUL byte.
 func newZScanner(r io.Reader) *bufio.Scanner {
 	scanner := bufio.NewScanner(r)
 	scanner.Split(porcelainv2ZSplitFunc)
 	return scanner
 }
 
-// porcelainv2ZSplitFunc is a custom split function that handles the dual NUL byte issue
+// porcelainv2ZSplitFunc is a custom [bufio.SplitFunc] that handles the dual NUL byte issue
 // in porcelain v2 -z output. For rename/copy entries (starting with "2 "), it looks for
 // the second NUL byte as the true line terminator, while for all other entries it uses
 // the first NUL byte as the terminator.
 func porcelainv2ZSplitFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	// Look for first NUL byte
+	// Look for first NUL byte. For rename/copy entries, this will be the path
+	// separator, and for all other entries, this is the entry terminator.
 	firstNUL := bytes.IndexByte(data, '\x00')
 	if firstNUL == -1 {
 		if atEOF && len(data) > 0 {
@@ -34,7 +38,7 @@ func porcelainv2ZSplitFunc(data []byte, atEOF bool) (advance int, token []byte, 
 	}
 
 	// Check if this is a rename/copy entry (starts with "2 ")
-	if len(data) >= 2 && data[0] == '2' && data[1] == ' ' {
+	if bytes.HasPrefix(data, []byte("2 ")) {
 		// Look for the second NUL byte (the line terminator)
 		secondNUL := bytes.IndexByte(data[firstNUL+1:], '\x00')
 		if secondNUL == -1 {
@@ -52,11 +56,14 @@ func porcelainv2ZSplitFunc(data []byte, atEOF bool) (advance int, token []byte, 
 			return 0, nil, nil
 		}
 
-		// Return the entire rename/copy entry including the internal NUL separator
-		totalLen := firstNUL + 1 + secondNUL + 1
-		return totalLen, data[:firstNUL+1+secondNUL], nil
+		// Return the entire rename/copy entry including the internal NUL path
+		// separator, advancing past the second NUL byte entry terminator.
+		data = data[:firstNUL+1+secondNUL]
+		return len(data) + 1, data, nil
 	}
 
-	// Normal case: return up to first NUL
-	return firstNUL + 1, data[:firstNUL], nil
+	// Normal case: return up to first NUL as the token,
+	// advancing the scanner past the entry terminator.
+	data = data[:firstNUL]
+	return len(data) + 1, data, nil
 }
