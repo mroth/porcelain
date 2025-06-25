@@ -16,16 +16,24 @@ var debugLogger = slog.New(slog.DiscardHandler)
 // Parse parses the output of `git status --porcelain=v2`.
 //
 // Additional status headers such as `--branch` and `--show-status` are parsed if present.
+//
+// Path Handling: Paths containing special characters may be quoted by Git according to
+// core.quotePath configuration. This function preserves paths exactly as provided by Git
+// without unquoting. If your application needs unquoted paths, consider using [ParseZ] with
+// the -z flag instead, as Git does not quote paths in -z format.
 func Parse(r io.Reader) (*Status, error) {
 	return parse(bufio.NewScanner(r), tabSeparator)
 }
 
 // ParseZ parses the output of `git status --porcelain=v2 -z`.
 //
+// Additional status headers such as `--branch` and `--show-status` are parsed if present.
+//
 // The -z flag changes line termination from LF to NUL and path separation in rename/copy
 // entries from tab to NUL.
 //
-// For additional details, see the documentation of [Parse].
+// Path Handling: In -z format, Git does not quote paths containing special characters, so
+// all paths are provided as-is. This function preserves paths exactly as provided by Git.
 func ParseZ(r io.Reader) (*Status, error) {
 	return parse(newZScanner(r), nulSeparator)
 }
