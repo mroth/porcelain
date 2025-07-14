@@ -3,7 +3,6 @@ package statusv2
 import (
 	"bytes"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -23,7 +22,9 @@ var (
 	sampleEntryIgnored         = []byte("! file_ignored.txt")
 )
 
-// samplePorcelainV2Output is a contrived sample output of `git status --porcelain=v2 --branch --show-status`.
+// samplePorcelainV2Output is a contrived sample output of:
+// `git status --porcelain=v2 --branch --show-status`.
+//
 // It contains branch information, a stash entry, and one changed file entry for each
 // of the EntryType variants: Changed, RenameOrCopy, Unmerged, Untracked, and Ignored.
 //
@@ -44,108 +45,99 @@ var samplePorcelainV2Output = bytes.Join([][]byte{
 	sampleEntryIgnored,
 }, []byte("\n"))
 
+// samplePorcelainV2Output is a contrived sample output of:
+// `git status --porcelain=v2 --branch --show-status -z`.
+//
+// It should parse to the same result as samplePorcelainV2Output, but uses NUL bytes.
+var samplePorcelainV2ZOutput = bytes.Join([][]byte{
+	sampleHeaderComment,
+	sampleHeaderBranchOID,
+	sampleHeaderBranchHead,
+	sampleHeaderBranchUpstream,
+	sampleHeaderBranchAB,
+	sampleHeaderStash,
+	sampleHeaderBranchUpstream,
+	sampleEntryChanged,
+	bytes.Replace(sampleEntryRenamed, []byte("\t"), []byte("\x00"), 1), // rename entry uses NUL instead of tab
+	sampleEntryUnmerged,
+	sampleEntryUntracked,
+	sampleEntryIgnored,
+}, []byte("\x00"))
+
+// sampleParsedStatus is the expected result of parsing samplePorcelainV2Output
+// with [Parse], or parsing samplePorcelainV2ZOutput with [ParseZ].
+var sampleParsedStatus = Status{
+	Branch: &BranchInfo{
+		OID:      "34064be349d4a03ed158aba170d8d2db6ff9e3e0",
+		Head:     "main",
+		Upstream: "origin/main",
+		Ahead:    6,
+		Behind:   3,
+	},
+	Stash: &StashInfo{Count: 3},
+	Entries: []Entry{
+		ChangedEntry{
+			XY:    XYFlag{Modified, Unmodified},
+			Sub:   SubmoduleStatus{IsSubmodule: false},
+			ModeH: 0100644,
+			ModeI: 0100644,
+			ModeW: 0100644,
+			HashH: "1234567890abcdef1234567890abcdef12345678",
+			HashI: "1234567890abcdef1234567890abcdef12345678",
+			Path:  "file_changed.txt",
+		},
+		RenameOrCopyEntry{
+			XY:    XYFlag{Renamed, Unmodified},
+			Sub:   SubmoduleStatus{IsSubmodule: false},
+			ModeH: 0100644,
+			ModeI: 0100644,
+			ModeW: 0100644,
+			HashH: "1234567890abcdef1234567890abcdef12345678",
+			HashI: "1234567890abcdef1234567890abcdef12345678",
+			Score: "R100",
+			Path:  "file_renamed.txt",
+			Orig:  "file_original.txt",
+		},
+		UnmergedEntry{
+			XY:    XYFlag{UpdatedUnmerged, UpdatedUnmerged},
+			Sub:   SubmoduleStatus{IsSubmodule: false},
+			Mode1: 0100644,
+			Mode2: 0100644,
+			Mode3: 0100644,
+			ModeW: 0100644,
+			Hash1: "1234567890abcdef1234567890abcdef12345678",
+			Hash2: "abcdef1234567890abcdef1234567890abcdef12",
+			Hash3: "fedcba0987654321fedcba0987654321fedcba09",
+			Path:  "file_unmerged.txt",
+		},
+		UntrackedEntry{
+			Path: "file_untracked.txt",
+		},
+		IgnoredEntry{
+			Path: "file_ignored.txt",
+		},
+	},
+}
+
 func TestParse(t *testing.T) {
 	r := bytes.NewReader(samplePorcelainV2Output)
 	got, err := Parse(r)
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	want := &Status{
-		Branch: &BranchInfo{
-			OID:      "34064be349d4a03ed158aba170d8d2db6ff9e3e0",
-			Head:     "main",
-			Upstream: "origin/main",
-			Ahead:    6,
-			Behind:   3,
-		},
-		Stash: &StashInfo{Count: 3},
-		Entries: []Entry{
-			ChangedEntry{
-				XY:    XYFlag{Modified, Unmodified},
-				Sub:   SubmoduleStatus{IsSubmodule: false},
-				ModeH: 0100644,
-				ModeI: 0100644,
-				ModeW: 0100644,
-				HashH: "1234567890abcdef1234567890abcdef12345678",
-				HashI: "1234567890abcdef1234567890abcdef12345678",
-				Path:  "file_changed.txt",
-			},
-			RenameOrCopyEntry{
-				XY:    XYFlag{Renamed, Unmodified},
-				Sub:   SubmoduleStatus{IsSubmodule: false},
-				ModeH: 0100644,
-				ModeI: 0100644,
-				ModeW: 0100644,
-				HashH: "1234567890abcdef1234567890abcdef12345678",
-				HashI: "1234567890abcdef1234567890abcdef12345678",
-				Score: "R100",
-				Path:  "file_renamed.txt",
-				Orig:  "file_original.txt",
-			},
-			UnmergedEntry{
-				XY:    XYFlag{UpdatedUnmerged, UpdatedUnmerged},
-				Sub:   SubmoduleStatus{IsSubmodule: false},
-				Mode1: 0100644,
-				Mode2: 0100644,
-				Mode3: 0100644,
-				ModeW: 0100644,
-				Hash1: "1234567890abcdef1234567890abcdef12345678",
-				Hash2: "abcdef1234567890abcdef1234567890abcdef12",
-				Hash3: "fedcba0987654321fedcba0987654321fedcba09",
-				Path:  "file_unmerged.txt",
-			},
-			UntrackedEntry{
-				Path: "file_untracked.txt",
-			},
-			IgnoredEntry{
-				Path: "file_ignored.txt",
-			},
-		},
-	}
+	want := &sampleParsedStatus
 	if cmp.Diff(want, got) != "" {
 		t.Errorf("Parse() mismatch (-want +got):\n%s", cmp.Diff(want, got))
 	}
 }
 
 func TestParseZ(t *testing.T) {
-	// Test ParseZ with basic functionality
-	input := "1 M. N... 100644 100644 100644 hash1 hash2 modified.txt\x00" +
-		"2 R. N... 100644 100644 100644 hash1 hash2 R100 newpath.txt\x00oldpath.txt\x00" +
-		"? untracked.txt\x00"
-
-	got, err := ParseZ(strings.NewReader(input))
+	r := bytes.NewReader(samplePorcelainV2ZOutput)
+	got, err := ParseZ(r)
 	if err != nil {
 		t.Fatalf("ParseZ() error = %v", err)
 	}
-	want := &Status{
-		Entries: []Entry{
-			ChangedEntry{
-				XY:    XYFlag{Modified, Unmodified},
-				Sub:   SubmoduleStatus{IsSubmodule: false},
-				ModeH: 0100644,
-				ModeI: 0100644,
-				ModeW: 0100644,
-				HashH: "hash1",
-				HashI: "hash2",
-				Path:  "modified.txt",
-			},
-			RenameOrCopyEntry{
-				XY:    XYFlag{Renamed, Unmodified},
-				Sub:   SubmoduleStatus{IsSubmodule: false},
-				ModeH: 0100644,
-				ModeI: 0100644,
-				ModeW: 0100644,
-				HashH: "hash1",
-				HashI: "hash2",
-				Score: "R100",
-				Path:  "newpath.txt",
-				Orig:  "oldpath.txt",
-			},
-			UntrackedEntry{
-				Path: "untracked.txt",
-			},
-		},
-	}
+	want := &sampleParsedStatus
 	if cmp.Diff(want, got) != "" {
 		t.Errorf("ParseZ() mismatch (-want +got):\n%s", cmp.Diff(want, got))
 	}
