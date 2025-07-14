@@ -16,7 +16,7 @@ used with the command.
 	    log.Fatal(err)
 	}
 
-[ParseZ] provides a variant that will work with NUL-terminated git status output (from -z flag):
+[ParseZ] provides a variant that will work with NUL-terminated git status output (from -z flag).
 
 # Working with Results
 
