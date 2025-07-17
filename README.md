@@ -1,7 +1,7 @@
 # porcelain 🫖
-[![Go Reference](https://pkg.go.dev/badge/github.com/mroth/porcelain/statusv2.svg)](https://pkg.go.dev/github.com/mroth/porcelain/statusv2)
-<!-- [![CodeFactor](https://www.codefactor.io/repository/github/mroth/porcelain/badge)](https://www.codefactor.io/repository/github/mroth/porcelain) -->
-<!-- [![Build Status](https://github.com/mroth/porcelain/workflows/test/badge.svg)](https://github.com/mroth/porcelain/actions) -->
+[![Go Reference](https://pkg.go.dev/badge/github.com/mroth/porcelain.svg)](https://pkg.go.dev/github.com/mroth/porcelain)
+[![CodeFactor](https://www.codefactor.io/repository/github/mroth/porcelain/badge)](https://www.codefactor.io/repository/github/mroth/porcelain)
+[![Build Status](https://github.com/mroth/porcelain/workflows/test/badge.svg)](https://github.com/mroth/porcelain/actions)
 <!-- [![codecov](https://codecov.io/gh/mroth/porcelain/branch/main/graph/badge.svg)](https://codecov.io/gh/mroth/porcelain) -->
 
 Porcelain provides parsers for Git's [porcelain status output] in Go.
