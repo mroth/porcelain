@@ -10,7 +10,7 @@ import (
 	"strconv"
 )
 
-// Enable debug logging by setting this to a vaild *slog.Logger
+// Enable debug logging by setting this to a valid *slog.Logger
 var debugLogger = slog.New(slog.DiscardHandler)
 
 // Parse parses the output of `git status --porcelain=v2`.

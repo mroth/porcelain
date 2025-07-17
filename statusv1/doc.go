@@ -11,7 +11,7 @@ which is simpler than the more modern porcelain=v2 format.
 [Parse] takes an [io.Reader] containing `git status --porcelain=v1` output.
 
 	r := bytes.NewReader(gitStatusOutput)
-	status, err := statusv2.Parse(r)
+	status, err := statusv1.Parse(r)
 	if err != nil {
 	    log.Fatal(err)
 	}
