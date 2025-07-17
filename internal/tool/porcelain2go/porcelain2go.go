@@ -4,40 +4,64 @@
 //
 // Usage example:
 //
+//	git status --porcelain=v1 | porcelain2go -format v1
 //	git status --porcelain=v2 | porcelain2go -format v2
+//	git status --porcelain=v1 -z | porcelain2go -format v1z
 //	git status --porcelain=v2 -z | porcelain2go -format v2z
 package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
 
+	"github.com/mroth/porcelain/statusv1"
 	"github.com/mroth/porcelain/statusv2"
-	"github.com/yassinebenaid/godump"
 )
 
 var (
-	porcelainVersion = flag.String("format", "v2", "porcelain version to parse [v2, v2z]")
+	porcelainVersion = flag.String("format", "v2", "porcelain version to parse [v1, v1z, v2, v2z]")
 )
+
+type StatusParser func(io.Reader) (any, error)
+
+func getStatusParser(format string) (StatusParser, error) {
+	switch format {
+	case "v1":
+		return func(r io.Reader) (any, error) { return statusv1.Parse(r) }, nil
+	case "v1z":
+		return func(r io.Reader) (any, error) { return statusv1.ParseZ(r) }, nil
+	case "v2":
+		return func(r io.Reader) (any, error) { return statusv2.Parse(r) }, nil
+	case "v2z":
+		return func(r io.Reader) (any, error) { return statusv2.ParseZ(r) }, nil
+	default:
+		return nil, fmt.Errorf("unsupported -format flag value: %s", format)
+	}
+}
 
 func main() {
 	flag.Parse()
-	var parserMap = map[string]func(io.Reader) (*statusv2.Status, error){
-		"v2":  statusv2.Parse,
-		"v2z": statusv2.ParseZ,
-	}
-	parser, found := parserMap[*porcelainVersion]
-	if !found {
-		log.Fatalf("unsupported -porcelain version: %s", *porcelainVersion)
+	parser, err := getStatusParser(*porcelainVersion)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		flag.Usage()
+		os.Exit(2)
 	}
 
 	in := bufio.NewReader(os.Stdin)
 	results, err := parser(in)
 	if err != nil {
-		log.Fatalf("error parsing porcelain output: %v", err)
+		log.Fatalf("fatal: error parsing porcelain output: %v", err)
 	}
-	godump.Dump(*results)
+
+	out, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		log.Fatalf("fatal: error marshaling results to JSON: %v", err)
+	}
+	fmt.Println(string(out))
 }

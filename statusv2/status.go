@@ -1,6 +1,9 @@
 package statusv2
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+)
 
 // Status represents parsed git status --porcelain=v2 output.
 //
@@ -86,7 +89,23 @@ type XYFlag struct {
 	Y State // working tree status
 }
 
+// String returns the XY status as a two-character string.
 func (xy XYFlag) String() string { return string(xy.X) + string(xy.Y) }
+
+// MarshalText implements encoding.TextMarshaler for XYFlag.
+func (xy XYFlag) MarshalText() ([]byte, error) {
+	return []byte(xy.String()), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler for XYFlag.
+func (xy *XYFlag) UnmarshalText(text []byte) error {
+	if len(text) != 2 {
+		return fmt.Errorf("XYFlag.UnmarshalText: input must be 2 bytes, got %d", len(text))
+	}
+	xy.X = State(text[0])
+	xy.Y = State(text[1])
+	return nil
+}
 
 // A FileMode represents the kind of tree entries used by git. It resembles
 // regular file systems modes, although FileModes are considerably simpler.

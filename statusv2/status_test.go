@@ -1,6 +1,9 @@
 package statusv2
 
-import "testing"
+import (
+	"encoding"
+	"testing"
+)
 
 func TestXYFlag_Accessors(t *testing.T) {
 	flags := XYFlag{Modified, Unmodified}
@@ -37,6 +40,46 @@ func TestXYFlag_String(t *testing.T) {
 				t.Errorf("Expected %q, got %q", tc.expected, result)
 			}
 		})
+	}
+}
+
+func TestXYFlag_MarshalUnmarshalText(t *testing.T) {
+	// enforce interface compliance
+	var _ encoding.TextMarshaler = (*XYFlag)(nil)
+	var _ encoding.TextUnmarshaler = (*XYFlag)(nil)
+
+	tests := []struct {
+		xy     XYFlag
+		expect string
+	}{
+		{XYFlag{Unmodified, Modified}, ".M"},
+		{XYFlag{Added, Unmodified}, "A."},
+	}
+
+	for _, tc := range tests {
+		b, err := tc.xy.MarshalText()
+		if err != nil {
+			t.Errorf("MarshalText() error = %v", err)
+		}
+		if string(b) != tc.expect {
+			t.Errorf("MarshalText() = %q, want %q", b, tc.expect)
+		}
+
+		var xy XYFlag
+		err = xy.UnmarshalText([]byte(tc.expect))
+		if err != nil {
+			t.Errorf("UnmarshalText() error = %v", err)
+		}
+		if xy != tc.xy {
+			t.Errorf("UnmarshalText() = %+v, want %+v", xy, tc.xy)
+		}
+	}
+
+	// Test error case for UnmarshalText
+	var xy XYFlag
+	err := xy.UnmarshalText([]byte("A"))
+	if err == nil {
+		t.Errorf("UnmarshalText() should error for input of length != 2")
 	}
 }
 

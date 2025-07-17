@@ -1,5 +1,7 @@
 package statusv1
 
+import "fmt"
+
 // State represents a single character from Git porcelain=v1 status codes.
 type State byte
 
@@ -35,11 +37,26 @@ type XYFlag struct {
 // String returns the XY status as a two-character string.
 func (xy XYFlag) String() string { return string(xy.X) + string(xy.Y) }
 
+// MarshalText implements encoding.TextMarshaler for XYFlag.
+func (xy XYFlag) MarshalText() ([]byte, error) {
+	return []byte(xy.String()), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler for XYFlag.
+func (xy *XYFlag) UnmarshalText(text []byte) error {
+	if len(text) != 2 {
+		return fmt.Errorf("XYFlag.UnmarshalText: input must be 2 bytes, got %d", len(text))
+	}
+	xy.X = State(text[0])
+	xy.Y = State(text[1])
+	return nil
+}
+
 // Entry represents a single file entry in git status --porcelain=v1 output.
 type Entry struct {
 	XY       XYFlag // two-character status code
 	Path     string // current path of the file
-	OrigPath string // original path for renamed/copied files (empty if not renamed/copied)
+	OrigPath string `json:",omitempty"` // original path for renamed/copied files (empty if not renamed/copied)
 }
 
 // Status represents the parsed output of git status --porcelain=v1.
