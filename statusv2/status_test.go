@@ -68,6 +68,69 @@ func TestFileMode_String(t *testing.T) {
 	}
 }
 
+func TestSubmoduleStatus_String(t *testing.T) {
+	testcases := []struct {
+		name     string
+		status   SubmoduleStatus
+		expected string
+	}{
+		{
+			name:     "not a submodule",
+			status:   SubmoduleStatus{},
+			expected: "N...",
+		},
+		{
+			name: "commit changed",
+			status: SubmoduleStatus{
+				IsSubmodule:      true,
+				CommitChanged:    true,
+				HasModifications: false,
+				HasUntracked:     false,
+			},
+			expected: "SC..",
+		},
+		{
+			name: "has modifications",
+			status: SubmoduleStatus{
+				IsSubmodule:      true,
+				CommitChanged:    false,
+				HasModifications: true,
+				HasUntracked:     false,
+			},
+			expected: "S.M.",
+		},
+		{
+			name: "has modifications",
+			status: SubmoduleStatus{
+				IsSubmodule:      true,
+				CommitChanged:    false,
+				HasModifications: true,
+				HasUntracked:     false,
+			},
+			expected: "S.M.",
+		},
+		{
+			name: "all fields",
+			status: SubmoduleStatus{
+				IsSubmodule:      true,
+				CommitChanged:    true,
+				HasModifications: true,
+				HasUntracked:     true,
+			},
+			expected: "SCMU",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tc.status.String()
+			if result != tc.expected {
+				t.Errorf("Expected %q, got %q", tc.expected, result)
+			}
+		})
+	}
+}
+
 func TestEntry_Type(t *testing.T) {
 	testcases := []struct {
 		entry     Entry

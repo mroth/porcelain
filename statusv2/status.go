@@ -123,13 +123,28 @@ type SubmoduleStatus struct {
 	HasUntracked     bool // true if submodule has untracked changes
 }
 
-// TODO: add String() method to SubmoduleStatus?
-// <sub>       A 4 character field describing the submodule state.
-// 	    "N..." when the entry is not a submodule
-// 	    "S<c><m><u>" when the entry is a submodule
-// 	    <c> is "C" if the commit changed; otherwise "."
-// 	    <m> is "M" if it has tracked changes; otherwise "."
-// 	    <u> is "U" if there are untracked changes; otherwise "."
+// String returns a 4 character field describing the submodule state.
+//
+//	"N..." when the entry is not a submodule
+//	"S<c><m><u>" when the entry is a submodule
+//	<c> is "C" if the commit changed; otherwise "."
+//	<m> is "M" if it has tracked changes; otherwise "."
+//	<u> is "U" if there are untracked changes; otherwise "."
+func (s SubmoduleStatus) String() string {
+	if !s.IsSubmodule {
+		return "N..."
+	}
+	chooseRune := func(cond bool, on, off rune) rune {
+		if cond {
+			return on
+		}
+		return off
+	}
+	return "S" +
+		string(chooseRune(s.CommitChanged, 'C', '.')) +
+		string(chooseRune(s.HasModifications, 'M', '.')) +
+		string(chooseRune(s.HasUntracked, 'U', '.'))
+}
 
 // ChangedEntry represents a modified file (added, modified, deleted, etc).
 //
