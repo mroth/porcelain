@@ -49,10 +49,9 @@ func porcelainv1ZSplitFunc(data []byte, atEOF bool) (advance int, token []byte, 
 				if firstNUL+1 < len(data) {
 					// We have data after the first NUL, treat as second path
 					return len(data), data, nil
-				} else {
-					// Only one path, this is corruption
-					return 0, nil, fmt.Errorf("malformed rename/copy entry: missing original path")
 				}
+				// Only one path, this is invalid for this entry type
+				return 0, nil, fmt.Errorf("malformed rename/copy entry: missing original path")
 			}
 			// Need more data to find the second NUL
 			return 0, nil, nil
