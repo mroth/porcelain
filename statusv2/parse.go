@@ -119,7 +119,10 @@ func parseHeaderEntry(line []byte, s *Status) {
 	case "branch.upstream":
 		ensureBranch(s).Upstream = string(value)
 	case "branch.ab":
-		fmt.Sscanf(string(value), "+%d -%d", &ensureBranch(s).Ahead, &ensureBranch(s).Behind)
+		if plus, minus, ok := bytes.Cut(value, []byte{' '}); ok {
+			ensureBranch(s).Ahead, _ = strconv.Atoi(string(plus[1:]))   // skip '+'
+			ensureBranch(s).Behind, _ = strconv.Atoi(string(minus[1:])) // skip '-'
+		}
 	case "stash":
 		n, err := strconv.ParseInt(string(value), 10, 0)
 		if err != nil {
