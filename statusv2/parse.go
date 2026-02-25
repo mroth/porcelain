@@ -124,13 +124,13 @@ func parseHeaderEntry(line []byte, s *Status) {
 			ensureBranch(s).Behind, _ = strconv.Atoi(string(minus[1:])) // skip '-'
 		}
 	case "stash":
-		n, err := strconv.ParseInt(string(value), 10, 0)
+		n, err := strconv.Atoi(string(value))
 		if err != nil {
 			// If we can't parse the stash count, just ignore it as invalid
 			debugLogger.Warn("invalid stash count", "line", string(line), "error", err)
 			return
 		}
-		s.Stash = &StashInfo{Count: int(n)}
+		s.Stash = &StashInfo{Count: n}
 	default:
 		debugLogger.Debug("unrecognized status header", "line", string(line))
 	}
