@@ -126,8 +126,8 @@ func TestParse(t *testing.T) {
 		t.Fatalf("Parse() error = %v", err)
 	}
 	want := &sampleParsedStatus
-	if cmp.Diff(want, got) != "" {
-		t.Errorf("Parse() mismatch (-want +got):\n%s", cmp.Diff(want, got))
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Parse() mismatch (-want +got):\n%s", diff)
 	}
 }
 
