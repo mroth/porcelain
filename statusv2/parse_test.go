@@ -45,7 +45,7 @@ var samplePorcelainV2Output = bytes.Join([][]byte{
 	sampleEntryIgnored,
 }, []byte("\n"))
 
-// samplePorcelainV2Output is a contrived sample output of:
+// samplePorcelainV2ZOutput is a contrived sample output of:
 // `git status --porcelain=v2 --branch --show-status -z`.
 //
 // It should parse to the same result as samplePorcelainV2Output, but uses NUL bytes.
