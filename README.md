@@ -10,7 +10,7 @@ Porcelain provides parsers for Git's [porcelain status output] in Go.
   - [github.com/mroth/porcelain/statusv2] provides `porcelain=v2` format parsing.
 
 The parsers are performant (parsing a typical git status report including
-headers in ~2µs single-threaded), and robust (fuzz tested to avoid any possible
+headers in ~1 µs single-threaded), and robust (fuzz tested to avoid any possible
 crashing panics).
 
 Support for both regular (LF delimited) and `-z` (NUL delimited) output formats
