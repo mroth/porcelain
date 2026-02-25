@@ -143,16 +143,6 @@ func TestSubmoduleStatus_String(t *testing.T) {
 			expected: "S.M.",
 		},
 		{
-			name: "has modifications",
-			status: SubmoduleStatus{
-				IsSubmodule:      true,
-				CommitChanged:    false,
-				HasModifications: true,
-				HasUntracked:     false,
-			},
-			expected: "S.M.",
-		},
-		{
 			name: "all fields",
 			status: SubmoduleStatus{
 				IsSubmodule:      true,
