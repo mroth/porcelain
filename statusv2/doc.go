@@ -32,7 +32,7 @@ The [Status] struct contains parsed information:
 	    case ChangedEntry:
 	        fmt.Printf("Changed: %s (flags: %s)\n", e.Path, e.XY)
 	    case RenameOrCopyEntry:
-	        fmt.Printf("Renamed: %s -> %s\n", e.OrigPath, e.Path)
+	        fmt.Printf("Renamed: %s -> %s\n", e.Orig, e.Path)
 	    case UnmergedEntry:
 	        fmt.Printf("Conflict: %s [%o/%o/%o]\n", e.Path, e.Mode1, e.Mode2, e.Mode3)
 	    case UntrackedEntry:
