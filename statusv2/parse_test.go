@@ -23,7 +23,7 @@ var (
 )
 
 // samplePorcelainV2Output is a contrived sample output of:
-// `git status --porcelain=v2 --branch --show-status`.
+// `git status --porcelain=v2 --branch --show-stash`.
 //
 // It contains branch information, a stash entry, and one changed file entry for each
 // of the EntryType variants: Changed, RenameOrCopy, Unmerged, Untracked, and Ignored.
@@ -46,7 +46,7 @@ var samplePorcelainV2Output = bytes.Join([][]byte{
 }, []byte("\n"))
 
 // samplePorcelainV2ZOutput is a contrived sample output of:
-// `git status --porcelain=v2 --branch --show-status -z`.
+// `git status --porcelain=v2 --branch --show-stash -z`.
 //
 // It should parse to the same result as samplePorcelainV2Output, but uses NUL bytes.
 var samplePorcelainV2ZOutput = bytes.Join([][]byte{
