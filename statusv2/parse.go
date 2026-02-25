@@ -143,43 +143,81 @@ func ensureBranch(s *Status) *BranchInfo {
 	return s.Branch
 }
 
+// fieldScanner walks a byte slice field-by-field using a space delimiter.
+// It accumulates an error when a field is missing, allowing callers to
+// extract multiple fields and check for errors once at the end.
+type fieldScanner struct {
+	data []byte
+	pos  int
+	err  error
+}
+
+// next returns the bytes up to the next space delimiter and advances past it.
+// If no delimiter is found, it sets the scanner's error and returns nil.
+func (s *fieldScanner) next() []byte {
+	if s.err != nil {
+		return nil
+	}
+	i := bytes.IndexByte(s.data[s.pos:], ' ')
+	if i == -1 {
+		s.err = errors.New("too few fields")
+		return nil
+	}
+	field := s.data[s.pos : s.pos+i]
+	s.pos += i + 1
+	return field
+}
+
+// remainder returns all bytes from the current position to the end of data.
+// Used for the final field in a line (e.g., a path that may contain spaces).
+func (s *fieldScanner) remainder() []byte {
+	return s.data[s.pos:]
+}
+
 // Ordinary changed entries have the following format:
 // 1 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <path>
 func parseChangedEntry(line []byte) (ChangedEntry, error) {
 	var zero ChangedEntry
-	fields := bytes.SplitN(line, []byte{' '}, 9)
-	if len(fields) < 9 || !bytes.HasPrefix(fields[0], []byte{'1'}) {
+	// Field 0: entry type prefix "1"
+	if len(line) < 2 || line[0] != '1' || line[1] != ' ' {
 		return zero, fmt.Errorf("invalid changed entry line: %q", line)
 	}
+	s := fieldScanner{data: line, pos: 2}
 
 	// Field 1: XY status code
-	xy, err := parseXYFlag(fields[1])
+	xy, err := parseXYFlag(s.next())
 	if err != nil {
 		return zero, err
 	}
-
 	// Field 2: Submodule status
-	sub, err := parseSubmoduleStatus(fields[2])
+	sub, err := parseSubmoduleStatus(s.next())
 	if err != nil {
 		return zero, err
 	}
 
 	// Fields 3-5: File modes (HEAD, index, worktree)
-	modeH, errH := parseFileMode(fields[3])
-	modeI, errI := parseFileMode(fields[4])
-	modeW, errW := parseFileMode(fields[5])
+	rawModeH, rawModeI, rawModeW := s.next(), s.next(), s.next()
+	// Check s.err before parsing so a truncated line reports "invalid line"
+	// rather than a confusing parseFileMode error on nil input.
+	if s.err != nil {
+		return zero, fmt.Errorf("invalid changed entry line: %q", line)
+	}
+	modeH, errH := parseFileMode(rawModeH)
+	modeI, errI := parseFileMode(rawModeI)
+	modeW, errW := parseFileMode(rawModeW)
 	if err := errors.Join(errH, errI, errW); err != nil {
 		return zero, fmt.Errorf("invalid file mode fields: %w", err)
 	}
 
 	// Fields 6-7: Object names (HEAD, index)
-	// These are currently usually SHA-1 hashes in hex format, but treat as strings
-	// given that they could be other types in the future (e.g. SHA-256 transition)
-	hashH := string(fields[6])
-	hashI := string(fields[7])
+	hashH := string(s.next())
+	hashI := string(s.next())
+	// Field 8: Path (remainder of line)
+	path := string(s.remainder())
 
-	// Field 8: Path
-	path := string(fields[8])
+	if s.err != nil {
+		return zero, fmt.Errorf("invalid changed entry line: %q", line)
+	}
 
 	return ChangedEntry{
 		XY:    xy,
@@ -197,50 +235,54 @@ func parseChangedEntry(line []byte) (ChangedEntry, error) {
 // 2 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path><sep><origPath>
 func parseRenameOrCopyEntry(line []byte, pathSep renamePathSep) (RenameOrCopyEntry, error) {
 	var zero RenameOrCopyEntry
-	fields := bytes.SplitN(line, []byte{' '}, 10)
-	if len(fields) < 10 || !bytes.HasPrefix(fields[0], []byte{'2'}) {
+	// Field 0: entry type prefix "2"
+	if len(line) < 2 || line[0] != '2' || line[1] != ' ' {
 		return zero, fmt.Errorf("invalid rename or copy entry line: %q", line)
 	}
+	s := fieldScanner{data: line, pos: 2}
 
 	// Field 1: XY status code
-	xy, err := parseXYFlag(fields[1])
+	xy, err := parseXYFlag(s.next())
 	if err != nil {
 		return zero, err
 	}
-
 	// Field 2: Submodule status
-	sub, err := parseSubmoduleStatus(fields[2])
+	sub, err := parseSubmoduleStatus(s.next())
 	if err != nil {
 		return zero, err
 	}
 
 	// Fields 3-5: File modes (HEAD, index, worktree)
-	modeH, errH := parseFileMode(fields[3])
-	modeI, errI := parseFileMode(fields[4])
-	modeW, errW := parseFileMode(fields[5])
+	rawModeH, rawModeI, rawModeW := s.next(), s.next(), s.next()
+	if s.err != nil {
+		return zero, fmt.Errorf("invalid rename or copy entry line: %q", line)
+	}
+	modeH, errH := parseFileMode(rawModeH)
+	modeI, errI := parseFileMode(rawModeI)
+	modeW, errW := parseFileMode(rawModeW)
 	if err := errors.Join(errH, errI, errW); err != nil {
 		return zero, fmt.Errorf("invalid file mode fields: %w", err)
 	}
 
 	// Fields 6-7: Object names (HEAD, index)
-	// These are currently usually SHA-1 hashes in hex format, but treat as strings
-	// given that they could be other types in the future (e.g. SHA-256 transition)
-	hashH := string(fields[6])
-	hashI := string(fields[7])
-
+	hashH := string(s.next())
+	hashI := string(s.next())
 	// Field 8: Rename or copy score
-	// The rename or copy score (denoting the percentage of similarity between
-	// the source and target of the move or copy). For example "R100" or "C75".
-	score := string(fields[8])
+	score := string(s.next())
 
 	// Field 9: <path><sep><origPath>
 	// The target path (new path) and the origin path (old path) are separated
 	// by tab (ASCII 0x09), except in -z mode, where they are separated by NUL
 	// (ASCII 0x00).
-	sep := []byte{byte(pathSep)}
-	pathBytes, origBytes, found := bytes.Cut(fields[9], sep)
+	remainder := s.remainder()
+
+	if s.err != nil {
+		return zero, fmt.Errorf("invalid rename or copy entry line: %q", line)
+	}
+
+	pathBytes, origBytes, found := bytes.Cut(remainder, []byte{byte(pathSep)})
 	if !found {
-		return zero, fmt.Errorf("invalid rename/copy path entry format: %q", fields[9])
+		return zero, fmt.Errorf("invalid rename/copy path entry format: %q", remainder)
 	}
 	path := string(pathBytes)
 	orig := string(origBytes)
@@ -263,39 +305,46 @@ func parseRenameOrCopyEntry(line []byte, pathSep renamePathSep) (RenameOrCopyEnt
 // u <XY> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <path>
 func parseUnmergedEntry(line []byte) (UnmergedEntry, error) {
 	var zero UnmergedEntry
-	fields := bytes.SplitN(line, []byte{' '}, 11)
-	if len(fields) < 11 || !bytes.HasPrefix(fields[0], []byte{'u'}) {
+	// Field 0: entry type prefix "u"
+	if len(line) < 2 || line[0] != 'u' || line[1] != ' ' {
 		return zero, fmt.Errorf("invalid unmerged entry line: %q", line)
 	}
+	s := fieldScanner{data: line, pos: 2}
 
 	// Field 1: XY status code
-	xy, err := parseXYFlag(fields[1])
+	xy, err := parseXYFlag(s.next())
 	if err != nil {
 		return zero, err
 	}
-
 	// Field 2: Submodule status
-	sub, err := parseSubmoduleStatus(fields[2])
+	sub, err := parseSubmoduleStatus(s.next())
 	if err != nil {
 		return zero, err
 	}
 
 	// Fields 3-6: File modes (stage 1, stage 2, stage 3, worktree)
-	mode1, err1 := parseFileMode(fields[3])
-	mode2, err2 := parseFileMode(fields[4])
-	mode3, err3 := parseFileMode(fields[5])
-	modeW, errW := parseFileMode(fields[6])
+	rawMode1, rawMode2, rawMode3, rawModeW := s.next(), s.next(), s.next(), s.next()
+	if s.err != nil {
+		return zero, fmt.Errorf("invalid unmerged entry line: %q", line)
+	}
+	mode1, err1 := parseFileMode(rawMode1)
+	mode2, err2 := parseFileMode(rawMode2)
+	mode3, err3 := parseFileMode(rawMode3)
+	modeW, errW := parseFileMode(rawModeW)
 	if err := errors.Join(err1, err2, err3, errW); err != nil {
 		return zero, fmt.Errorf("invalid file mode fields: %w", err)
 	}
 
 	// Fields 7-9: Object names (stage 1, stage 2, stage 3)
-	hash1 := string(fields[7])
-	hash2 := string(fields[8])
-	hash3 := string(fields[9])
+	hash1 := string(s.next())
+	hash2 := string(s.next())
+	hash3 := string(s.next())
+	// Field 10: Path (remainder of line)
+	path := string(s.remainder())
 
-	// Field 10: Path
-	path := string(fields[10])
+	if s.err != nil {
+		return zero, fmt.Errorf("invalid unmerged entry line: %q", line)
+	}
 
 	return UnmergedEntry{
 		XY:    xy,

@@ -769,6 +769,82 @@ func Test_parseUnmergedEntry(t *testing.T) {
 	}
 }
 
+func Test_fieldScanner(t *testing.T) {
+	testcases := []struct {
+		name       string
+		data       string
+		pos        int
+		nextN      int // number of next() calls to make
+		wantFields []string
+		wantRem    string
+		wantErr    bool
+	}{
+		{
+			name:       "all fields via next plus remainder",
+			data:       "aa bb cc dd",
+			nextN:      3,
+			wantFields: []string{"aa", "bb", "cc"},
+			wantRem:    "dd",
+		},
+		{
+			name:       "remainder includes internal spaces",
+			data:       "aa path with spaces",
+			nextN:      1,
+			wantFields: []string{"aa"},
+			wantRem:    "path with spaces",
+		},
+		{
+			name:       "with initial pos offset",
+			data:       "1 M. N...",
+			pos:        2,
+			nextN:      1,
+			wantFields: []string{"M."},
+			wantRem:    "N...",
+		},
+		{
+			name:       "too few fields sets err",
+			data:       "aa bb",
+			nextN:      2,
+			wantFields: []string{"aa", ""},
+			wantRem:    "bb",
+			wantErr:    true,
+		},
+		{
+			name:       "next after error returns nil",
+			data:       "aa",
+			nextN:      2,
+			wantFields: []string{"", ""},
+			wantRem:    "aa",
+			wantErr:    true,
+		},
+		{
+			name:       "zero value scanner",
+			data:       "",
+			nextN:      1,
+			wantFields: []string{""},
+			wantRem:    "",
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := fieldScanner{data: []byte(tc.data), pos: tc.pos}
+			for i, want := range tc.wantFields {
+				if got := string(s.next()); got != want {
+					t.Errorf("next() call %d = %q, want %q", i, got, want)
+				}
+			}
+			if got := string(s.remainder()); got != tc.wantRem {
+				t.Errorf("remainder() = %q, want %q", got, tc.wantRem)
+			}
+			if (s.err != nil) != tc.wantErr {
+				t.Errorf("err = %v, wantErr %v", s.err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func Test_parseXYFlag(t *testing.T) {
 	testcases := []struct {
 		name    string
